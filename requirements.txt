@@ -1,0 +1,10 @@
+mypy==0.982
+torch==1.9.0
+sentencepiece==0.1.96
+duckdb==0.8.1
+pandas==2.0.0
+numpy==1.24.2
+scikit-learn==1.2.2
+transformers==4.28.1
+onnx==1.14.0
+onnxruntime==1.15.0
