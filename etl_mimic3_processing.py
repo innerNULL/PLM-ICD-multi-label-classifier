@@ -3,7 +3,7 @@
 # date: 2023-09-22
 #
 # An example usage:
-# python etl_mimic3_processing.py ./_data/raw_data/mimic-iii-clinical-database-demo-1.4/ ./_data/trans/mimic3
+# python etl_mimic3_processing.py ./_data/raw_data/mimic-iii-clinical-database-demo-1.4/ ./_data/etl 
 
 
 import pdb
@@ -11,13 +11,17 @@ import os
 import sys
 import duckdb
 from duckdb import DuckDBPyRelation
+from pandas import DataFrame
+
+
+PROCESSED_DATA_FILE: str = "dim_processed_base_data.csv"
 
 
 def init(out_data_dir: str) -> None:
     os.system("mkdir -p %s" % out_data_dir)
 
 
-def etl(src_data_dir: str, out_data_dir: str) -> None:
+def processing(src_data_dir: str, out_data_path: str) -> None:
     # MIMIC-III raw data paths
     procedures_data_path: str = os.path.join(src_data_dir, "PROCEDURES_ICD.csv")
     diagnosis_data_path: str = os.path.join(src_data_dir, "DIAGNOSES_ICD.csv")
@@ -59,13 +63,53 @@ def etl(src_data_dir: str, out_data_dir: str) -> None:
         """
     )
     dim_full_data.df().to_csv(
-        os.path.join(out_data_dir, "dim_full_data.csv"), header=True
+        os.path.join(out_data_dir, PROCESSED_DATA_FILE), header=True
     )
+
+
+def train_data_gen(
+    src_data_path: str, out_data_dir: str, 
+    train_data_ratio: float=0.98, dev_data_ratio: float=0.01
+) -> None:
+    assert(train_data_ratio + dev_data_ratio <= 0.99)
+
+    full_data: DuckDBPyRelation = duckdb.query(
+        """
+        select TEXT as text, icds as label from read_csv('%s', AUTO_DETECT=TRUE)
+        order by random() asc; 
+        """ % src_data_path
+    )
+    total_data_size: int = duckdb.query("select count(1) from full_data;").df().iloc[0, 0]
+    train_data_size: int = int(total_data_size * train_data_ratio)
+    dev_data_size: int = int(total_data_size * dev_data_ratio)
+    test_data_size: int = total_data_size - train_data_size - dev_data_size
+
+    train_data_start_idx: int = 0
+    train_data_end_idx: int = train_data_size
+    dev_data_start_idx: int = train_data_size
+    dev_data_end_idx: int = dev_data_start_idx + dev_data_size
+    test_data_start_idx: int = dev_data_end_idx
+    test_data_end_idx: int = test_data_start_idx + test_data_size
+    
+    train_data: DataFrame = full_data.df().iloc[train_data_start_idx:train_data_end_idx, :]
+    dev_data: DataFrame = full_data.df().iloc[dev_data_start_idx:dev_data_end_idx, :]
+    test_data: DataFrame = full_data.df().iloc[test_data_start_idx:test_data_end_idx, :]
+    
+    train_data.to_csv(os.path.join(out_data_dir, "train.csv"), header=True)
+    dev_data.to_csv(os.path.join(out_data_dir, "dev.csv"), header=True)
+    test_data.to_csv(os.path.join(out_data_dir, "test.csv"), header=True)
 
 
 if __name__ == "__main__":
     src_data_dir: str = sys.argv[1]
     out_data_dir: str = sys.argv[2]
 
+    full_base_data_path: str = os.path.join(out_data_dir, PROCESSED_DATA_FILE)
+
     init(out_data_dir)
-    etl(src_data_dir, out_data_dir)
+
+    if not os.path.exists(full_base_data_path):
+        processing(src_data_dir, full_base_data_path)
+    else:
+        print("Using local cache: %s" % full_base_data_path)
+    train_data_gen(full_base_data_path, out_data_dir)
