@@ -6,7 +6,8 @@
 import pdb
 import torch
 from typing import Union, List
-from torch.nn import Module, Linear, Softmax
+from torch import device
+from torch.nn import Module, Linear, Softmax, Parameter
 from torch import LongTensor, FloatTensor
 from transformers import AutoModel, AutoTokenizer
 
@@ -31,20 +32,27 @@ class PlmMultiLabelEncoder(Module):
 
         # Layers and weights
         # `V` matrix in paper
-        self._label_attn_linear_weights_0: FloatTensor = torch.rand(
-            size=(first_attn_hidden_dim, lm_embd_dim), 
-            dtype=torch.float32, requires_grad=True
+        self._label_attn_linear_weights_0: FloatTensor = Parameter(
+            torch.rand(
+                size=(first_attn_hidden_dim, lm_embd_dim), dtype=torch.float32
+            ), requires_grad=True
         )
+        self.register_parameter("label_attn_linear_weights_0", self._label_attn_linear_weights_0)
         # `W` matric in paper
-        self._label_attn_linear_weights_1: FloatTensor = torch.rand(
-            size=(label_num, first_attn_hidden_dim), 
-            dtype=torch.float32, requires_grad=True
+        self._label_attn_linear_weights_1: FloatTensor = Parameter(
+            torch.rand(
+                size=(label_num, first_attn_hidden_dim), dtype=torch.float32
+            ), requires_grad=True
         )
+        self.register_parameter("label_attn_linear_weights_1", self._label_attn_linear_weights_1)
+
         self._label_attn_linear_1_act: Softmax = Softmax(dim=2)
 
         # Label embedding matrix
-        self._label_embeddings: FloatTensor = torch.rand(
-            size=(lm_embd_dim, label_num), dtype=torch.float32, requires_grad=True
+        self._label_embeddings: FloatTensor = Parameter(
+            torch.rand(
+                size=(lm_embd_dim, label_num), dtype=torch.float32
+            ), requires_grad=True
         )
 
     def forward(self, token_ids: LongTensor, attn_masks: LongTensor) -> FloatTensor:
@@ -107,7 +115,10 @@ class PlmMultiLabelEncoder(Module):
             # dimension: (batch-size, LM-hidden-dimension, label-num)
             torch.mul(weighted_chunk_embeddings, self._label_embeddings), dim=1
         )
-        logits = torch.sigmoid(logits)
         
+        #logits = torch.sigmoid(logits)
         return logits
-
+    
+    def to(self, dest: device) -> None:
+        super().to(dest)
+        self._lm = self._lm.to(dest)
