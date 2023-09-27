@@ -54,6 +54,7 @@ class PlmMultiLabelEncoder(Module):
                 size=(lm_embd_dim, label_num), dtype=torch.float32
             ), requires_grad=True
         )
+        self.register_parameter("label_embeddings", self._label_embeddings)
 
     def forward(self, token_ids: LongTensor, attn_masks: LongTensor) -> FloatTensor:
         """
@@ -118,7 +119,3 @@ class PlmMultiLabelEncoder(Module):
         
         #logits = torch.sigmoid(logits)
         return logits
-    
-    def to(self, dest: device) -> None:
-        super().to(dest)
-        self._lm = self._lm.to(dest)
