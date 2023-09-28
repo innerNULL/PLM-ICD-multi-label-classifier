@@ -7,26 +7,31 @@ import pdb
 import os
 import json
 import torch
+import torch.nn.functional as F
 from typing import Dict
 from transformers import AutoTokenizer
 from torch import device
 from torch import LongTensor, FloatTensor
 from torch.utils.data import DataLoader 
 from torch.optim import AdamW
+from torch.optim.lr_scheduler import LinearLR
 
 from src import text
 from src.model import PlmMultiLabelEncoder
 from src.data import TextOnlyDataset
 
 
-CHUNK_SIZE: int = 512
-CHUNK_NUM: int = 2
+CHUNK_SIZE: int = 128
+CHUNK_NUM: int = 24
+#HF_LM: str = "dmis-lab/biobert-base-cased-v1.1"
 HF_LM: str = "distilbert-base-uncased"
 DATA_DIR: str = "_data/etl/mimic3"
 
 
-def loss_fn(logits: FloatTensor, label_one_hot: FloatTensor) -> FloatTensor:
-    label_probs: FloatTensor = torch.sigmoid(logits)
+def loss_fn(
+    logits: FloatTensor, label_one_hot: FloatTensor, bias: float=1e-10
+) -> FloatTensor:
+    label_probs: FloatTensor = torch.sigmoid(logits) + bias
     bin_cross_entropies: FloatTensor = \
         label_one_hot.mul(torch.log(label_probs)) \
         + (1 - label_one_hot).mul(torch.log(1 - label_probs))
@@ -35,6 +40,8 @@ def loss_fn(logits: FloatTensor, label_one_hot: FloatTensor) -> FloatTensor:
 
 
 if __name__ == "__main__":
+    torch.manual_seed(32)
+
     device: device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data_dict: Dict = json.loads(
         open(os.path.join(DATA_DIR, "dict.json"), "r").read()
@@ -45,15 +52,18 @@ if __name__ == "__main__":
     )
     dataset: TextOnlyDataset = TextOnlyDataset(
         os.path.join(DATA_DIR, "train.csv"), 
-        os.path.join(DATA_DIR, "dict.json"), tokenizer, "text"
+        os.path.join(DATA_DIR, "dict.json"), tokenizer, "text", 
+        chunk_size=CHUNK_SIZE, chunk_num=CHUNK_NUM
     )
     dataloader: DataLoader = DataLoader(dataset, batch_size=8, shuffle=True)
-    optimizer: AdamW = AdamW(model.parameters(), lr=1e-3)
+    optimizer: AdamW = AdamW(model.parameters(), lr=5e-5)
+    scheduler = LinearLR(optimizer, total_iters=2000)
     
     model.to(device)
-
-    for epoch in range(3):
-        for i, batch in enumerate(dataloader):
+   
+    global_step_id: int = 0
+    for epoch_id, epoch in enumerate(range(3)):
+        for batch_id, batch in enumerate(dataloader):
             optimizer.zero_grad()
 
             label_one_hot: FloatTensor = None
@@ -68,12 +78,13 @@ if __name__ == "__main__":
 
             model.train()
             logits: FloatTensor = model(text_ids, attn_masks)
-            loss: FloatTensor = loss_fn(logits, label_one_hot)
+            #loss: FloatTensor = loss_fn(logits, label_one_hot)
+            loss: FloatTensor = F.binary_cross_entropy(torch.sigmoid(logits), label_one_hot)
             
             loss.backward()
             optimizer.step()
             
-            if i % 10 == 0:
+            if batch_id % 10 == 0:
                 print("loss=%f" % loss)
             
             model.eval()
