@@ -39,6 +39,45 @@ def loss_fn(
     return loss.mean()
 
 
+def eval(
+    model: PlmMultiLabelEncoder, dataloader: DataLoader, device: device, 
+    max_sample: int=1e4
+) -> Dict[str, float]:
+    out: Dict[str, float] = {}
+    total_cnt: int = 0
+    all_loss: List[float] = []
+    all_micro_recall: List[float] = []
+    all_micro_precision: List[float] = []
+
+    model.eval()
+    with torch.no_grad():
+        for batch in dataloader:
+            label_one_hot: FloatTensor = None
+            text_ids: LongTensor = None
+            attn_masks: LongTensor = None
+
+            text_ids, attn_masks, label_one_hot = batch
+
+            label_one_hot = label_one_hot.to(device)
+            text_ids = text_ids.to(device)
+            attn_masks = attn_masks.to(device)
+            
+            logits: FloatTensor = model(text_ids, attn_masks)
+            output_label_probs: FloatTensor = torch.sigmoid(logits)
+
+            loss: float = float(
+                F.binary_cross_entropy(output_label_probs, label_one_hot).cpu()
+            )
+            all_loss.append(loss)
+
+            total_cnt += text_ids.shape[0]
+            if total_cnt >= max_sample:
+                break
+
+    return {
+        "loss": sum(all_loss) / len(all_loss)
+    }
+
 if __name__ == "__main__":
     torch.manual_seed(32)
 
@@ -50,12 +89,20 @@ if __name__ == "__main__":
     model: PlmMultiLabelEncoder = PlmMultiLabelEncoder(
         len(data_dict["label2id"]), HF_LM, 768, CHUNK_SIZE, CHUNK_NUM
     )
-    dataset: TextOnlyDataset = TextOnlyDataset(
+    
+    train_dataset: TextOnlyDataset = TextOnlyDataset(
         os.path.join(DATA_DIR, "train.csv"), 
         os.path.join(DATA_DIR, "dict.json"), tokenizer, "text", 
         chunk_size=CHUNK_SIZE, chunk_num=CHUNK_NUM
     )
-    dataloader: DataLoader = DataLoader(dataset, batch_size=8, shuffle=True)
+    dev_dataset: TextOnlyDataset = TextOnlyDataset(
+        os.path.join(DATA_DIR, "dev.csv"), 
+        os.path.join(DATA_DIR, "dict.json"), tokenizer, "text", 
+        chunk_size=CHUNK_SIZE, chunk_num=CHUNK_NUM
+    )
+    train_dataloader: DataLoader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+    dev_dataloader: DataLoader = DataLoader(dev_dataset, batch_size=8, shuffle=True)
+    
     optimizer: AdamW = AdamW(model.parameters(), lr=5e-5)
     scheduler = LinearLR(optimizer, total_iters=2000)
     
@@ -63,7 +110,7 @@ if __name__ == "__main__":
    
     global_step_id: int = 0
     for epoch_id, epoch in enumerate(range(3)):
-        for batch_id, batch in enumerate(dataloader):
+        for batch_id, batch in enumerate(train_dataloader):
             optimizer.zero_grad()
 
             label_one_hot: FloatTensor = None
@@ -86,6 +133,8 @@ if __name__ == "__main__":
             
             if batch_id % 10 == 0:
                 print("loss=%f" % loss)
+            if batch_id % 100  == 0:
+                print(eval(model, dev_dataloader, device, 1000)) 
             
             model.eval()
         
