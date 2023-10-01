@@ -36,4 +36,3 @@ def test_PlmMultiLabelEncoder_forward() -> None:
         model: PlmMultiLabelEncoder = PlmMultiLabelEncoder(
             label_num, HF_LM, LM_EMBD_DIM, chunk_size, chunk_num
         )
-        inputs

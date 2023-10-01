@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from typing import Dict
 from transformers import AutoTokenizer
 from torch import device
-from torch import LongTensor, FloatTensor
+from torch import LongTensor, FloatTensor, IntTensor
 from torch.utils.data import DataLoader 
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LinearLR
@@ -19,6 +19,7 @@ from torch.optim.lr_scheduler import LinearLR
 from src import text
 from src.model import PlmMultiLabelEncoder
 from src.data import TextOnlyDataset
+from src.metrics import metrics_func
 
 
 CHUNK_SIZE: int = 128
@@ -48,6 +49,10 @@ def eval(
     all_loss: List[float] = []
     all_micro_recall: List[float] = []
     all_micro_precision: List[float] = []
+    all_micro_f1: List[float] = []
+    all_macro_recall: List[float] = []
+    all_macro_precision: List[float] = []
+    all_macro_f1: List[float] = []
 
     model.eval()
     with torch.no_grad():
@@ -64,18 +69,37 @@ def eval(
             
             logits: FloatTensor = model(text_ids, attn_masks)
             output_label_probs: FloatTensor = torch.sigmoid(logits)
+            output_one_hot: IntTensor = (output_label_probs > 0.5).int()
 
+            # Loss
             loss: float = float(
                 F.binary_cross_entropy(output_label_probs, label_one_hot).cpu()
             )
             all_loss.append(loss)
+            
+            # Metrics
+            curr_metrics: Dict[str, float] = metrics_func(
+                output_one_hot.int(), label_one_hot.int()
+            )
+            all_micro_recall.append(curr_metrics["micro_recall"])
+            all_micro_precision.append(curr_metrics["micro_precision"])
+            all_micro_f1.append(curr_metrics["micro_f1"])
+            all_macro_recall.append(curr_metrics["macro_recall"])
+            all_macro_precision.append(curr_metrics["macro_precision"])
+            all_macro_f1.append(curr_metrics["macro_f1"])
 
             total_cnt += text_ids.shape[0]
             if total_cnt >= max_sample:
                 break
 
     return {
-        "loss": sum(all_loss) / len(all_loss)
+        "loss": round(sum(all_loss) / len(all_loss), 8),  
+        "micro_recall": round(sum(all_micro_recall) / len(all_micro_recall), 4), 
+        "micro_precision": round(sum(all_micro_precision) / len(all_micro_precision), 4),
+        "micro_f1": round(sum(all_micro_f1) / len(all_micro_f1), 4),
+        "macro_recall": round(sum(all_macro_recall) / len(all_macro_recall), 4), 
+        "macro_precision": round(sum(all_macro_precision) / len(all_macro_precision), 4),
+        "macro_f1": round(sum(all_macro_f1) / len(all_macro_f1), 4)
     }
 
 if __name__ == "__main__":
@@ -130,11 +154,10 @@ if __name__ == "__main__":
             
             loss.backward()
             optimizer.step()
-            
+           
+            model.eval()
             if batch_id % 10 == 0:
                 print("loss=%f" % loss)
-            if batch_id % 100  == 0:
+            if batch_id % 500  == 0:
                 print(eval(model, dev_dataloader, device, 1000)) 
-            
-            model.eval()
         
