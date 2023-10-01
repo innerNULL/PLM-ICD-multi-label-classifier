@@ -22,11 +22,13 @@ from src.data import TextOnlyDataset
 from src.metrics import metrics_func
 
 
-CHUNK_SIZE: int = 128
-CHUNK_NUM: int = 24
-#HF_LM: str = "dmis-lab/biobert-base-cased-v1.1"
-HF_LM: str = "distilbert-base-uncased"
-DATA_DIR: str = "_data/etl/mimic3"
+CONF: Dict = {
+    "chunk_size": 512, 
+    "chunk_num": 3, 
+    "hf_lm": "distilbert-base-uncased",
+    "lm_hidden_dim": 768,
+    "data_dir": "_data/etl/mimic3"
+}
 
 
 def loss_fn(
@@ -106,26 +108,28 @@ if __name__ == "__main__":
     torch.manual_seed(32)
 
     device: device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    data_dict: Dict = json.loads(
-        open(os.path.join(DATA_DIR, "dict.json"), "r").read()
-    )
-    tokenizer: AutoTokenizer = AutoTokenizer.from_pretrained(HF_LM)
+    
+    data_dict_path: str = os.path.join(CONF["data_dir"], "dict.json")
+    train_data_path: str = os.path.join(CONF["data_dir"], "train.csv")
+    dev_data_path: str = os.path.join(CONF["data_dir"], "dev.csv")
+
+    data_dict: Dict = json.loads(open(data_dict_path, "r").read())
+    tokenizer: AutoTokenizer = AutoTokenizer.from_pretrained(CONF["hf_lm"])
     model: PlmMultiLabelEncoder = PlmMultiLabelEncoder(
-        len(data_dict["label2id"]), HF_LM, 768, CHUNK_SIZE, CHUNK_NUM
+        len(data_dict["label2id"]), 
+        CONF["hf_lm"], CONF["lm_hidden_dim"], CONF["chunk_size"], CONF["chunk_num"]
     )
     
     train_dataset: TextOnlyDataset = TextOnlyDataset(
-        os.path.join(DATA_DIR, "train.csv"), 
-        os.path.join(DATA_DIR, "dict.json"), tokenizer, "text", 
-        chunk_size=CHUNK_SIZE, chunk_num=CHUNK_NUM
+        train_data_path, data_dict_path, tokenizer, "text", 
+        chunk_size=CONF["chunk_size"], chunk_num=CONF["chunk_num"]
     )
     dev_dataset: TextOnlyDataset = TextOnlyDataset(
-        os.path.join(DATA_DIR, "dev.csv"), 
-        os.path.join(DATA_DIR, "dict.json"), tokenizer, "text", 
-        chunk_size=CHUNK_SIZE, chunk_num=CHUNK_NUM
+        dev_data_path, data_dict_path, tokenizer, "text", 
+        chunk_size=CONF["chunk_size"], chunk_num=CONF["chunk_num"]
     )
     train_dataloader: DataLoader = DataLoader(train_dataset, batch_size=8, shuffle=True)
-    dev_dataloader: DataLoader = DataLoader(dev_dataset, batch_size=8, shuffle=True)
+    dev_dataloader: DataLoader = DataLoader(dev_dataset, batch_size=64, shuffle=True)
     
     optimizer: AdamW = AdamW(model.parameters(), lr=5e-5)
     scheduler = LinearLR(optimizer, total_iters=2000)
