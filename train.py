@@ -7,6 +7,7 @@ import pdb
 import os
 import json
 import torch
+import ray.train
 import torch.nn.functional as F
 from typing import Dict
 from transformers import AutoTokenizer
@@ -15,6 +16,9 @@ from torch import LongTensor, FloatTensor, IntTensor
 from torch.utils.data import DataLoader 
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LinearLR
+from tqdm import tqdm
+from ray.train import ScalingConfig
+from ray.train.torch import TorchTrainer
 
 from src import text
 from src.model import PlmMultiLabelEncoder
@@ -23,11 +27,12 @@ from src.metrics import metrics_func
 
 
 CONF: Dict = {
-    "chunk_size": 512, 
+    "chunk_size": 256, 
     "chunk_num": 3, 
     "hf_lm": "distilbert-base-uncased",
     "lm_hidden_dim": 768,
-    "data_dir": "_data/etl/mimic3"
+    "data_dir": "./_data/etl/mimic3", 
+    "training_engine": "ray"
 }
 
 
@@ -43,7 +48,7 @@ def loss_fn(
 
 
 def eval(
-    model: PlmMultiLabelEncoder, dataloader: DataLoader, device: device, 
+    model: PlmMultiLabelEncoder, dataloader: DataLoader, device: device=None, 
     max_sample: int=1e4
 ) -> Dict[str, float]:
     out: Dict[str, float] = {}
@@ -65,9 +70,10 @@ def eval(
 
             text_ids, attn_masks, label_one_hot = batch
 
-            label_one_hot = label_one_hot.to(device)
-            text_ids = text_ids.to(device)
-            attn_masks = attn_masks.to(device)
+            if device is not None:
+                label_one_hot = label_one_hot.to(device)
+                text_ids = text_ids.to(device)
+                attn_masks = attn_masks.to(device)
             
             logits: FloatTensor = model(text_ids, attn_masks)
             output_label_probs: FloatTensor = torch.sigmoid(logits)
@@ -106,7 +112,9 @@ def eval(
 
 
 def train_func(configs: Dict) -> None:
-    device: device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device: device = None
+    if CONF["training_engine"] == "torch":
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     data_dict_path: str = os.path.join(configs["data_dir"], "dict.json")
     train_data_path: str = os.path.join(configs["data_dir"], "train.csv")
@@ -127,13 +135,18 @@ def train_func(configs: Dict) -> None:
         dev_data_path, data_dict_path, tokenizer, "text", 
         chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"]
     )
-    train_dataloader: DataLoader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+    train_dataloader: DataLoader = DataLoader(train_dataset, batch_size=2, shuffle=True)
     dev_dataloader: DataLoader = DataLoader(dev_dataset, batch_size=64, shuffle=True)
     
     optimizer: AdamW = AdamW(model.parameters(), lr=5e-5)
     scheduler = LinearLR(optimizer, total_iters=2000)
-    
-    model.to(device)
+   
+    if CONF["training_engine"] == "torch":
+        model.to(device)
+    elif CONF["training_engine"] == "ray":
+        model = ray.train.torch.prepare_model(model)
+        train_dataloader = ray.train.torch.prepare_data_loader(train_dataloader)
+        dev_dataloader = ray.train.torch.prepare_data_loader(dev_dataloader)
    
     global_step_id: int = 0
     for epoch_id, epoch in enumerate(range(3)):
@@ -157,13 +170,33 @@ def train_func(configs: Dict) -> None:
             
             loss.backward()
             optimizer.step()
+            global_step_id += 1
            
             model.eval()
-            if batch_id % 10 == 0:
+            if batch_id % 10 == 0 and CONF["training_engine"] == "torch":
                 print("loss=%f" % loss)
             if batch_id % 500  == 0:
-                print(eval(model, dev_dataloader, device, 1000)) 
+                eval_metrics: Dict[str, float] = eval(model, dev_dataloader, device, 1000)
+                eval_metrics["train_loss"] = round(float(loss.detach().cpu()), 6)
+                eval_metrics["epoch"] = epoch_id
+                eval_metrics["batch"] = batch_id
+                eval_metrics["step"] = global_step_id
+                if CONF["training_engine"] == "torch":
+                    print(eval_metrics)
+                elif CONF["training_engine"] == "ray":
+                    ray.train.report(metrics=eval_metrics) 
        
 if __name__ == "__main__":
     torch.manual_seed(32)
-    train_func(CONF)
+
+    if CONF["training_engine"] == "torch":
+        train_func(CONF)
+    elif CONF["training_engine"] == "ray":
+        scaling_config = ScalingConfig(num_workers=4, use_gpu=True)
+        trainer = TorchTrainer(
+            train_loop_per_worker=train_func,
+            train_loop_config=CONF,
+            scaling_config=scaling_config,
+        )
+        result = trainer.fit()
+        print(f"Training result: {result}")
