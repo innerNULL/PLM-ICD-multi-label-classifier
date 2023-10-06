@@ -23,7 +23,7 @@ from ray.train.torch import TorchTrainer
 from src import text
 from src.model import PlmMultiLabelEncoder
 from src.data import TextOnlyDataset
-from src.metrics import metrics_func
+from src.metrics import metrics_func, flex_metrics_func
 
 
 CONF: Dict = {
@@ -185,7 +185,8 @@ def train_func(configs: Dict) -> None:
                     print(eval_metrics)
                 elif CONF["training_engine"] == "ray":
                     ray.train.report(metrics=eval_metrics) 
-       
+      
+
 if __name__ == "__main__":
     torch.manual_seed(32)
 
