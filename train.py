@@ -6,6 +6,7 @@
 import pdb
 import sys
 import os
+import tempfile
 import json
 import torch
 import ray.train
@@ -179,12 +180,15 @@ def train_func(configs: Dict) -> None:
             
             loss.backward()
             optimizer.step()
-            global_step_id += 1
            
             model.eval()
             if batch_id % 10 == 0 and configs["training_engine"] == "torch":
                 print("loss=%f" % loss)
             if batch_id % 500  == 0:
+                version: str = "step={}-batch={}-epoch={}".format(global_step_id, batch_id, epoch_id)
+                ckpt_dir: str = os.path.join(configs["ckpt_dir"], version)
+                os.system("mkdir -p %s" % ckpt_dir)
+                print("Saving ckpt to %s" % ckpt_dir)
                 eval_metrics: Dict[str, float] = eval(
                     model, dev_dataloader, device, configs["single_worker_eval_size"]
                 )
@@ -194,13 +198,30 @@ def train_func(configs: Dict) -> None:
                 eval_metrics["step"] = global_step_id
                 if configs["training_engine"] == "torch":
                     print(eval_metrics)
+                    open(os.path.join(ckpt_dir, "train.json"), "w").write(json.dumps(configs))
+                    torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
                 elif configs["training_engine"] == "ray":
-                    ray.train.report(metrics=eval_metrics) 
-      
+                    ray.train.report(metrics=eval_metrics)
+                    if ray.train.get_context().get_world_rank() == 0:
+                        open(os.path.join(ckpt_dir, "train.json"), "w").write(json.dumps(configs))
+                        torch.save(model.module.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+
+            global_step_id += 1
+
+    if configs["training_engine"] == "torch":
+        open(os.path.join(ckpt_dir, "train.json"), "w").write(json.dumps(configs))
+        torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+    elif configs["training_engine"] == "ray":
+        ray.train.report(metrics=eval_metrics)
+        if ray.train.get_context().get_world_rank() == 0:
+            open(os.path.join(ckpt_dir, "train.json"), "w").write(json.dumps(configs))
+            torch.save(model.module.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+
 
 if __name__ == "__main__":
     train_conf: Dict = json.loads(open(sys.argv[1], "r").read())
     train_conf["data_dir"] = os.path.abspath(train_conf["data_dir"])
+    train_conf["ckpt_dir"] = os.path.abspath(train_conf["ckpt_dir"])
     print("Training config:\n{}".format(train_conf))
 
     if train_conf["training_engine"] == "torch":
