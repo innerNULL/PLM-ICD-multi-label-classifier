@@ -113,7 +113,7 @@ def eval(
 
 def train_func(configs: Dict) -> None:
     device: device = None
-    if CONF["training_engine"] == "torch":
+    if configs["training_engine"] == "torch":
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     data_dict_path: str = os.path.join(configs["data_dir"], "dict.json")
@@ -141,9 +141,9 @@ def train_func(configs: Dict) -> None:
     optimizer: AdamW = AdamW(model.parameters(), lr=5e-5)
     scheduler = LinearLR(optimizer, total_iters=2000)
    
-    if CONF["training_engine"] == "torch":
+    if configs["training_engine"] == "torch":
         model.to(device)
-    elif CONF["training_engine"] == "ray":
+    elif configs["training_engine"] == "ray":
         model = ray.train.torch.prepare_model(model)
         train_dataloader = ray.train.torch.prepare_data_loader(train_dataloader)
         dev_dataloader = ray.train.torch.prepare_data_loader(dev_dataloader)
@@ -173,7 +173,7 @@ def train_func(configs: Dict) -> None:
             global_step_id += 1
            
             model.eval()
-            if batch_id % 10 == 0 and CONF["training_engine"] == "torch":
+            if batch_id % 10 == 0 and configs["training_engine"] == "torch":
                 print("loss=%f" % loss)
             if batch_id % 500  == 0:
                 eval_metrics: Dict[str, float] = eval(model, dev_dataloader, device, 1000)
@@ -181,9 +181,9 @@ def train_func(configs: Dict) -> None:
                 eval_metrics["epoch"] = epoch_id
                 eval_metrics["batch"] = batch_id
                 eval_metrics["step"] = global_step_id
-                if CONF["training_engine"] == "torch":
+                if configs["training_engine"] == "torch":
                     print(eval_metrics)
-                elif CONF["training_engine"] == "ray":
+                elif configs["training_engine"] == "ray":
                     ray.train.report(metrics=eval_metrics) 
       
 
