@@ -133,11 +133,13 @@ def train_func(configs: Dict) -> None:
     )
     
     train_dataset: TextOnlyDataset = TextOnlyDataset(
-        train_data_path, data_dict_path, tokenizer, "text", 
+        train_data_path, data_dict_path, tokenizer, 
+        text_col=configs["text_col"], label_col=configs["label_col"],
         chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"]
     )
     dev_dataset: TextOnlyDataset = TextOnlyDataset(
-        dev_data_path, data_dict_path, tokenizer, "text", 
+        dev_data_path, data_dict_path, tokenizer,
+        text_col=configs["text_col"], label_col=configs["label_col"],
         chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"]
     )
     train_dataloader: DataLoader = DataLoader(

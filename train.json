@@ -11,5 +11,7 @@
   "gpu": "true", 
   "workers": 4, 
   "single_worker_eval_size": 1000, 
-  "random_seed": 32
+  "random_seed": 32, 
+  "text_col": "text",
+  "label_col": "label"
 }
