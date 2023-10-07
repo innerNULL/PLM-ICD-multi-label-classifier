@@ -4,6 +4,7 @@
 
 
 import pdb
+import sys
 import os
 import json
 import torch
@@ -24,16 +25,6 @@ from src import text
 from src.model import PlmMultiLabelEncoder
 from src.data import TextOnlyDataset
 from src.metrics import metrics_func, flex_metrics_func
-
-
-CONF: Dict = {
-    "chunk_size": 256, 
-    "chunk_num": 3, 
-    "hf_lm": "distilbert-base-uncased",
-    "lm_hidden_dim": 768,
-    "data_dir": "./_data/etl/mimic3", 
-    "training_engine": "ray"
-}
 
 
 def loss_fn(
@@ -189,14 +180,16 @@ def train_func(configs: Dict) -> None:
 
 if __name__ == "__main__":
     torch.manual_seed(32)
+    train_conf: Dict = json.loads(open(sys.argv[1], "r").read()) 
+    print("Training config:\n{}".format(train_conf))
 
-    if CONF["training_engine"] == "torch":
-        train_func(CONF)
-    elif CONF["training_engine"] == "ray":
+    if train_conf["training_engine"] == "torch":
+        train_func(train_conf)
+    elif train_conf["training_engine"] == "ray":
         scaling_config = ScalingConfig(num_workers=4, use_gpu=True)
         trainer = TorchTrainer(
             train_loop_per_worker=train_func,
-            train_loop_config=CONF,
+            train_loop_config=train_conf,
             scaling_config=scaling_config,
         )
         result = trainer.fit()
