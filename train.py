@@ -138,10 +138,12 @@ def train_func(configs: Dict) -> None:
         dev_data_path, data_dict_path, tokenizer, "text", 
         chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"]
     )
-    train_dataloader: DataLoader = DataLoader(train_dataset, batch_size=2, shuffle=True)
+    train_dataloader: DataLoader = DataLoader(
+        train_dataset, batch_size=configs["single_worker_batch_size"], shuffle=True
+    )
     dev_dataloader: DataLoader = DataLoader(dev_dataset, batch_size=64, shuffle=True)
     
-    optimizer: AdamW = AdamW(model.parameters(), lr=5e-5)
+    optimizer: AdamW = AdamW(model.parameters(), lr=configs["lr"])
     scheduler = LinearLR(optimizer, total_iters=2000)
    
     if configs["training_engine"] == "torch":
@@ -152,7 +154,7 @@ def train_func(configs: Dict) -> None:
         dev_dataloader = ray.train.torch.prepare_data_loader(dev_dataloader)
    
     global_step_id: int = 0
-    for epoch_id, epoch in enumerate(range(3)):
+    for epoch_id, epoch in enumerate(range(configs["epochs"])):
         for batch_id, batch in enumerate(train_dataloader):
             optimizer.zero_grad()
 
@@ -179,7 +181,9 @@ def train_func(configs: Dict) -> None:
             if batch_id % 10 == 0 and configs["training_engine"] == "torch":
                 print("loss=%f" % loss)
             if batch_id % 500  == 0:
-                eval_metrics: Dict[str, float] = eval(model, dev_dataloader, device, 1000)
+                eval_metrics: Dict[str, float] = eval(
+                    model, dev_dataloader, device, configs["single_worker_eval_size"]
+                )
                 eval_metrics["train_loss"] = round(float(loss.detach().cpu()), 6)
                 eval_metrics["epoch"] = epoch_id
                 eval_metrics["batch"] = batch_id
@@ -198,7 +202,9 @@ if __name__ == "__main__":
     if train_conf["training_engine"] == "torch":
         train_func(train_conf)
     elif train_conf["training_engine"] == "ray":
-        scaling_config = ScalingConfig(num_workers=4, use_gpu=True)
+        scaling_config = ScalingConfig(
+            num_workers=train_conf["workers"], use_gpu=(train_conf["gpu"] == "true")
+        )
         trainer = TorchTrainer(
             train_loop_per_worker=train_func,
             train_loop_config=train_conf,

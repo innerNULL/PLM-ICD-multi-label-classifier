@@ -4,5 +4,11 @@
   "hf_lm": "distilbert-base-uncased",
   "lm_hidden_dim": 768,
   "data_dir": "./_data/etl/mimic3",
-  "training_engine": "ray"
+  "training_engine": "ray", 
+  "single_worker_batch_size": 2, 
+  "lr": 5e-5, 
+  "epochs": 3, 
+  "gpu": "true", 
+  "workers": 4, 
+  "single_worker_eval_size": 1000
 }
