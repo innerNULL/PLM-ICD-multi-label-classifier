@@ -196,7 +196,8 @@ def train_func(configs: Dict) -> None:
 
 if __name__ == "__main__":
     torch.manual_seed(32)
-    train_conf: Dict = json.loads(open(sys.argv[1], "r").read()) 
+    train_conf: Dict = json.loads(open(sys.argv[1], "r").read())
+    train_conf["data_dir"] = os.path.abspath(train_conf["data_dir"])
     print("Training config:\n{}".format(train_conf))
 
     if train_conf["training_engine"] == "torch":
