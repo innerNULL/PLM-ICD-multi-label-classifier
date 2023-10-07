@@ -115,6 +115,8 @@ def eval(
     return out
 
 def train_func(configs: Dict) -> None:
+    torch.manual_seed(configs["random_seed"])
+
     device: device = None
     if configs["training_engine"] == "torch":
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -195,7 +197,6 @@ def train_func(configs: Dict) -> None:
       
 
 if __name__ == "__main__":
-    torch.manual_seed(32)
     train_conf: Dict = json.loads(open(sys.argv[1], "r").read())
     train_conf["data_dir"] = os.path.abspath(train_conf["data_dir"])
     print("Training config:\n{}".format(train_conf))

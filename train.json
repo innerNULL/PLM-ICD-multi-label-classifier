@@ -10,5 +10,6 @@
   "epochs": 3, 
   "gpu": "true", 
   "workers": 4, 
-  "single_worker_eval_size": 1000
+  "single_worker_eval_size": 1000, 
+  "random_seed": 32
 }
