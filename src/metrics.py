@@ -37,13 +37,9 @@ def metrics_func(
     }
 
 
-def flex_metrics_func(
-    logits: FloatTensor, label_one_hot: IntTensor, 
-    top_k: Optional[int]=None, min_prob: Optional[float]=None, bias: float=1e-6
+def topk_metrics_func(
+    logits: FloatTensor, label_one_hot: IntTensor, top_k: int, bias: float=1e-6
 ) -> Dict[str, float]:
-    assert(top_k is not None or min_prob is not None)
-    assert(not (top_k is not None and min_prob is not None))
-
     out: Dict = {}
     
     probs: FloatTensor = torch.sigmoid(logits)
@@ -59,3 +55,6 @@ def flex_metrics_func(
     out["micro_f1@%i" % top_k] = metrics["micro_f1"]
    
     return out
+
+
+

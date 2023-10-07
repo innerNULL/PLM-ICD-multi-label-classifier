@@ -12,7 +12,7 @@ import pdb
 from typing import List, Dict
 from torch import IntTensor, FloatTensor
 
-from src.metrics import metrics_func, flex_metrics_func
+from src.metrics import metrics_func, topk_metrics_func
 
 
 BIAS: float = 1e-6
@@ -115,12 +115,11 @@ def test_metric_func_1() -> None:
     assert(round(cal_metrics["macro_precision"], 2) == round(macro_precision, 2))
 
 
-def test_flex_metrics_func_0() -> None:
+def test_topk_metrics_func_0() -> None:
     top_ks: List[int] = [1, 2, 4]
     for top_k in top_ks:
-        out_metrics: Dict = flex_metrics_func(
-            CASE0_OUTPUT_LOGITS, CASE0_LABEL_ONE_HOT, 
-            top_k=top_k, min_prob=None, bias=BIAS
+        out_metrics: Dict = topk_metrics_func(
+            CASE0_OUTPUT_LOGITS, CASE0_LABEL_ONE_HOT, top_k=top_k, bias=BIAS
         )
         
         if top_k == 1:

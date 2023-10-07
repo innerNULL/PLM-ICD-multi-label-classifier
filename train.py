@@ -24,7 +24,7 @@ from ray.train.torch import TorchTrainer
 from src import text
 from src.model import PlmMultiLabelEncoder
 from src.data import TextOnlyDataset
-from src.metrics import metrics_func, flex_metrics_func
+from src.metrics import metrics_func, topk_metrics_func
 
 
 def loss_fn(
@@ -44,63 +44,75 @@ def eval(
 ) -> Dict[str, float]:
     out: Dict[str, float] = {}
     total_cnt: int = 0
-    all_loss: List[float] = []
-    all_micro_recall: List[float] = []
-    all_micro_precision: List[float] = []
-    all_micro_f1: List[float] = []
-    all_macro_recall: List[float] = []
-    all_macro_precision: List[float] = []
-    all_macro_f1: List[float] = []
+    all_logits: List[FloatTensor] = []
+    all_label_one_hots: List[FloatTensor] = []
 
     model.eval()
     with torch.no_grad():
         for batch in dataloader:
-            label_one_hot: FloatTensor = None
-            text_ids: LongTensor = None
-            attn_masks: LongTensor = None
+            curr_label_one_hot: FloatTensor = None
+            curr_text_ids: LongTensor = None
+            curr_attn_masks: LongTensor = None
 
-            text_ids, attn_masks, label_one_hot = batch
+            curr_text_ids, curr_attn_masks, curr_label_one_hot = batch
 
             if device is not None:
-                label_one_hot = label_one_hot.to(device)
-                text_ids = text_ids.to(device)
-                attn_masks = attn_masks.to(device)
+                curr_label_one_hot = curr_label_one_hot.to(device)
+                curr_text_ids = curr_text_ids.to(device)
+                curr_attn_masks = curr_attn_masks.to(device)
             
-            logits: FloatTensor = model(text_ids, attn_masks)
-            output_label_probs: FloatTensor = torch.sigmoid(logits)
-            output_one_hot: IntTensor = (output_label_probs > 0.5).int()
+            curr_logits: FloatTensor = model(curr_text_ids, curr_attn_masks)
+            all_logits.append(curr_logits)
+            all_label_one_hots.append(curr_label_one_hot)
 
-            # Loss
-            loss: float = float(
-                F.binary_cross_entropy(output_label_probs, label_one_hot).cpu()
-            )
-            all_loss.append(loss)
-            
-            # Metrics
-            curr_metrics: Dict[str, float] = metrics_func(
-                output_one_hot.int(), label_one_hot.int()
-            )
-            all_micro_recall.append(curr_metrics["micro_recall"])
-            all_micro_precision.append(curr_metrics["micro_precision"])
-            all_micro_f1.append(curr_metrics["micro_f1"])
-            all_macro_recall.append(curr_metrics["macro_recall"])
-            all_macro_precision.append(curr_metrics["macro_precision"])
-            all_macro_f1.append(curr_metrics["macro_f1"])
-
-            total_cnt += text_ids.shape[0]
+            total_cnt += curr_text_ids.shape[0]
             if total_cnt >= max_sample:
                 break
 
-    return {
-        "loss": round(sum(all_loss) / len(all_loss), 8),  
-        "micro_recall": round(sum(all_micro_recall) / len(all_micro_recall), 4), 
-        "micro_precision": round(sum(all_micro_precision) / len(all_micro_precision), 4),
-        "micro_f1": round(sum(all_micro_f1) / len(all_micro_f1), 4),
-        "macro_recall": round(sum(all_macro_recall) / len(all_macro_recall), 4), 
-        "macro_precision": round(sum(all_macro_precision) / len(all_macro_precision), 4),
-        "macro_f1": round(sum(all_macro_f1) / len(all_macro_f1), 4)
-    }
+        logits: FloatTensor = torch.concat(all_logits, dim=0)
+        output_label_probs: FloatTensor = torch.sigmoid(logits)
+        output_one_hot: FloatTensor = (output_label_probs > 0.5).float()
+        label_one_hot: FloatTensor = torch.concat(all_label_one_hots, dim=0)
+        # Loss
+        loss: float = float(
+            F.binary_cross_entropy(output_label_probs, label_one_hot).cpu()
+        )
+        # Metrics
+        prob50_metrics: Dict[str, float] = metrics_func(
+            output_one_hot.int(), label_one_hot.int()
+        )
+        top5_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=5) 
+        top8_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=8)
+        top15_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=15)
 
+        out = {
+            "loss": round(loss, 8),  
+            "micro_recall": round(prob50_metrics["micro_recall"], 4), 
+            "micro_precision": round(prob50_metrics["micro_precision"], 4),
+            "micro_f1": round(prob50_metrics["micro_f1"], 4),
+            "macro_recall": round(prob50_metrics["macro_recall"], 4), 
+            "macro_precision": round(prob50_metrics["macro_precision"], 4),
+            "macro_f1": round(prob50_metrics["macro_f1"], 4), 
+            "micro_recall@5": round(top5_metrics["micro_recall@5"], 4), 
+            "micro_precision@5": round(top5_metrics["micro_precision@5"], 4), 
+            "micro_f1@5": round(top5_metrics["micro_f1@5"], 4), 
+            "macro_recall@5": round(top5_metrics["macro_recall@5"], 4), 
+            "macro_precision@5": round(top5_metrics["macro_precision@5"], 4), 
+            "macro_f1@5": round(top5_metrics["macro_f1@5"], 4), 
+            "micro_recall@8": round(top8_metrics["micro_recall@8"], 4), 
+            "micro_precision@8": round(top8_metrics["micro_precision@8"], 4), 
+            "micro_f1@8": round(top8_metrics["micro_f1@8"], 4), 
+            "macro_recall@8": round(top8_metrics["macro_recall@8"], 4), 
+            "macro_precision@8": round(top8_metrics["macro_precision@8"], 4), 
+            "macro_f1@8": round(top8_metrics["macro_f1@8"], 4), 
+            "micro_recall@15": round(top15_metrics["micro_recall@15"], 4), 
+            "micro_precision@15": round(top15_metrics["micro_precision@15"], 4), 
+            "micro_f1@15": round(top15_metrics["micro_f1@15"], 4), 
+            "macro_recall@15": round(top15_metrics["macro_recall@15"], 4), 
+            "macro_precision@15": round(top15_metrics["macro_precision@15"], 4), 
+            "macro_f1@15": round(top15_metrics["macro_f1@15"], 4) 
+        }
+    return out
 
 def train_func(configs: Dict) -> None:
     device: device = None
