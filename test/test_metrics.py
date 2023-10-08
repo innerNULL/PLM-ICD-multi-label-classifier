@@ -5,14 +5,14 @@
 
 import sys, os
 sys.path.append(
-    os.path.join(os.path.dirname(__file__), "..")
+    os.path.join(os.path.dirname(__file__), "../src")
 )
 
 import pdb
 from typing import List, Dict
 from torch import IntTensor, FloatTensor
 
-from src.metrics import metrics_func, topk_metrics_func
+from plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
 
 
 BIAS: float = 1e-6

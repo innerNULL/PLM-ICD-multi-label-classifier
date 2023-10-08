@@ -22,10 +22,10 @@ from tqdm import tqdm
 from ray.train import ScalingConfig
 from ray.train.torch import TorchTrainer
 
-from src import text
-from src.model import PlmMultiLabelEncoder
-from src.data import TextOnlyDataset
-from src.metrics import metrics_func, topk_metrics_func
+from src.plm_icd_multi_label_classifier import text
+from src.plm_icd_multi_label_classifier.model import PlmMultiLabelEncoder
+from src.plm_icd_multi_label_classifier.data import TextOnlyDataset
+from src.plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
 
 
 def loss_fn(
