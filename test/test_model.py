@@ -5,15 +5,15 @@
 
 import sys, os
 sys.path.append(
-    os.path.join(os.path.dirname(__file__), "..")
+    os.path.join(os.path.dirname(__file__), "../src")
 )
 
 import pdb
 from typing import List
 from transformers import AutoTokenizer
 
-from src import text
-from src.model import PlmMultiLabelEncoder 
+from plm_icd_multi_label_classifier import text
+from plm_icd_multi_label_classifier.model import PlmMultiLabelEncoder 
 
 
 CHUNK_SIZES: List[int] = [512]

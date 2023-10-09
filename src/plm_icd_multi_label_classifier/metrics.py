@@ -4,7 +4,9 @@
 
 
 import pdb
-from torch import Tensor, IntTensor
+import torch
+from typing import Dict, Optional
+from torch import Tensor, IntTensor, FloatTensor
 
 
 def metrics_func(
@@ -33,3 +35,26 @@ def metrics_func(
         "micro_precision": float(micro_precision.cpu()), 
         "micro_f1": float(micro_f1.cpu())
     }
+
+
+def topk_metrics_func(
+    logits: FloatTensor, label_one_hot: IntTensor, top_k: int, bias: float=1e-6
+) -> Dict[str, float]:
+    out: Dict = {}
+    
+    probs: FloatTensor = torch.sigmoid(logits)
+    topk_thresholds: FloatTensor = probs.topk(top_k, dim=1).values.min(dim=1).values.view(-1, 1)
+    output_one_hot: IntTensor = (probs >= topk_thresholds).int()
+    metrics: Dict = metrics_func(output_one_hot, label_one_hot, bias)
+
+    out["macro_recall@%i" % top_k] = metrics["macro_recall"]
+    out["macro_precision@%i" % top_k] = metrics["macro_precision"]
+    out["macro_f1@%i" % top_k] = metrics["macro_f1"]
+    out["micro_recall@%i" % top_k] = metrics["micro_recall"]
+    out["micro_precision@%i" % top_k] = metrics["micro_precision"]
+    out["micro_f1@%i" % top_k] = metrics["micro_f1"]
+   
+    return out
+
+
+

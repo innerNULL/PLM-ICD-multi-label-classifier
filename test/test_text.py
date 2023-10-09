@@ -5,13 +5,13 @@
 
 import sys, os
 sys.path.append(
-    os.path.join(os.path.dirname(__file__), "..")
+    os.path.join(os.path.dirname(__file__), "../src")
 )
 
 import pdb
 from transformers import AutoTokenizer
 
-from src import text
+from plm_icd_multi_label_classifier import text
 
 
 HF_LM: str = "distilbert-base-uncased"
