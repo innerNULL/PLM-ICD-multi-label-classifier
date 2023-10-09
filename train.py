@@ -28,6 +28,28 @@ from src.plm_icd_multi_label_classifier.data import TextOnlyDataset
 from src.plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
 
 
+def init_with_ckpt(net: PlmMultiLabelEncoder, ckpt_root_path: str, engine: str) -> None:
+    ckpts: List[str] = [x for x in os.listdir(ckpt_root_path) if x != "bak"]
+    if len(ckpts) == 0:
+        print("No existing CKPT")
+        return 
+    ckpts = sorted(
+        ckpts, 
+        key=lambda x: int(x.split("-")[0].replace("step", "")), reverse=True
+    )
+    ckpt_path = os.path.join(ckpt_root_path, ckpts[0], "model.pt")
+
+    if engine == "torch":
+        net.load_state_dict(torch.load(ckpt_path))
+    elif engine == "ray":
+        net.module.load_state_dict(torch.load(ckpt_path))
+    print("Finished loading CKPT from %s" % ckpt_path)
+    print(
+        "Please remember to remove original CKPT '%s' manually" 
+        % os.path.join(ckpt_root_path, ckpts[0])
+    )
+
+
 def loss_fn(
     logits: FloatTensor, label_one_hot: FloatTensor, bias: float=1e-10
 ) -> FloatTensor:
@@ -132,6 +154,7 @@ def train_func(configs: Dict) -> None:
         len(data_dict["label2id"]), 
         configs["hf_lm"], configs["lm_hidden_dim"], configs["chunk_size"], configs["chunk_num"]
     )
+    init_with_ckpt(model, configs["ckpt_dir"], "torch")
     
     train_dataset: TextOnlyDataset = TextOnlyDataset(
         train_data_path, data_dict_path, tokenizer, 
