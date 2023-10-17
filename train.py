@@ -252,6 +252,8 @@ if __name__ == "__main__":
     train_conf["ckpt_dir"] = os.path.abspath(train_conf["ckpt_dir"])
     print("Training config:\n{}".format(train_conf))
 
+    os.system("mkdir -p %s" % train_conf["ckpt_dir"])
+
     if train_conf["training_engine"] == "torch":
         train_func(train_conf)
     elif train_conf["training_engine"] == "ray":
