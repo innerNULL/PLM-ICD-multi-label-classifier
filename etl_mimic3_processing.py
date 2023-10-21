@@ -81,7 +81,8 @@ def train_data_gen(
 
     full_data: DuckDBPyRelation = duckdb.query(
         """
-        select TEXT as text, icds as label from read_json('%s', AUTO_DETECT=TRUE)
+        select setseed(0.16);
+        select TEXT as text, icds from read_json('%s', AUTO_DETECT=TRUE)
         order by random() asc; 
         """ % src_data_path
     )
