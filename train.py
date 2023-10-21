@@ -145,8 +145,8 @@ def train_func(configs: Dict) -> None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     data_dict_path: str = os.path.join(configs["data_dir"], "dict.json")
-    train_data_path: str = os.path.join(configs["data_dir"], "train.csv")
-    dev_data_path: str = os.path.join(configs["data_dir"], "dev.csv")
+    train_data_path: str = os.path.join(configs["data_dir"], "train.jsonl")
+    dev_data_path: str = os.path.join(configs["data_dir"], "dev.jsonl")
 
     data_dict: Dict = json.loads(open(data_dict_path, "r").read())
     tokenizer: AutoTokenizer = AutoTokenizer.from_pretrained(configs["hf_lm"])
@@ -159,12 +159,14 @@ def train_func(configs: Dict) -> None:
     train_dataset: TextOnlyDataset = TextOnlyDataset(
         train_data_path, data_dict_path, tokenizer, 
         text_col=configs["text_col"], label_col=configs["label_col"],
-        chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"]
+        chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"], 
+        data_format="jsonl"
     )
     dev_dataset: TextOnlyDataset = TextOnlyDataset(
         dev_data_path, data_dict_path, tokenizer,
         text_col=configs["text_col"], label_col=configs["label_col"],
-        chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"]
+        chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"],
+        data_format="jsonl"
     )
     train_dataloader: DataLoader = DataLoader(
         train_dataset, batch_size=configs["single_worker_batch_size"], shuffle=True
