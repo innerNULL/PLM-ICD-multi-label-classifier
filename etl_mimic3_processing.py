@@ -3,7 +3,7 @@
 # date: 2023-09-22
 #
 # An example usage:
-# python etl_mimic3_processing.py ./_data/raw_data/mimic-iii-clinical-database-demo-1.4/ ./_data/etl/mimic3 
+# python etl_mimic3_processing.py ./_data/raw_data/mimic3/ ./_data/etl/mimic3
 
 
 import pdb
