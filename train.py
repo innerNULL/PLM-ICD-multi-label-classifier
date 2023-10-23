@@ -253,6 +253,8 @@ if __name__ == "__main__":
     train_conf: Dict = json.loads(open(sys.argv[1], "r").read())
     train_conf["data_dir"] = os.path.abspath(train_conf["data_dir"])
     train_conf["ckpt_dir"] = os.path.abspath(train_conf["ckpt_dir"])
+    if os.path.exists(train_conf["hf_lm"]):
+        train_conf["hf_lm"] = os.path.abspath(train_conf["hf_lm"])
     print("Training config:\n{}".format(train_conf))
 
     os.system("mkdir -p %s" % train_conf["ckpt_dir"])
