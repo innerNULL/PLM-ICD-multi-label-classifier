@@ -3,7 +3,7 @@
 # date: 2023-09-22
 #
 # An example usage:
-# python etl_mimic3_processing.py ./_data/raw_data/mimic-iii-clinical-database-demo-1.4/ ./_data/etl/mimic3 
+# python etl_mimic3_processing.py ./_data/raw_data/mimic3/ ./_data/etl/mimic3
 
 
 import pdb
@@ -16,7 +16,7 @@ from duckdb import DuckDBPyRelation
 from pandas import DataFrame
 
 
-PROCESSED_DATA_FILE: str = "dim_processed_base_data.csv"
+PROCESSED_DATA_FILE: str = "dim_processed_base_data.jsonl"
 
 
 def init(out_data_dir: str) -> None:
@@ -68,8 +68,8 @@ def processing(src_data_dir: str, out_data_path: str) -> None:
         on t1.SUBJECT_ID = t2.SUBJECT_ID and t1.HADM_ID = t2.HADM_ID;
         """
     )
-    dim_full_data.df().to_csv(
-        os.path.join(out_data_dir, PROCESSED_DATA_FILE), header=True
+    dim_full_data.df().to_json(
+        os.path.join(out_data_dir, PROCESSED_DATA_FILE), orient="records"
     )
 
 
@@ -81,7 +81,8 @@ def train_data_gen(
 
     full_data: DuckDBPyRelation = duckdb.query(
         """
-        select TEXT as text, icds as label from read_csv('%s', AUTO_DETECT=TRUE)
+        select setseed(0.16);
+        select TEXT as text, icds from read_json('%s', AUTO_DETECT=TRUE)
         order by random() asc; 
         """ % src_data_path
     )
@@ -101,9 +102,9 @@ def train_data_gen(
     dev_data: DataFrame = full_data.df().iloc[dev_data_start_idx:dev_data_end_idx, :]
     test_data: DataFrame = full_data.df().iloc[test_data_start_idx:test_data_end_idx, :]
     
-    train_data.to_csv(os.path.join(out_data_dir, "train.csv"), header=True, index=False)
-    dev_data.to_csv(os.path.join(out_data_dir, "dev.csv"), header=True, index=False)
-    test_data.to_csv(os.path.join(out_data_dir, "test.csv"), header=True, index=False)
+    train_data.to_json(os.path.join(out_data_dir, "train.jsonl"), orient="records")
+    dev_data.to_json(os.path.join(out_data_dir, "dev.jsonl"), orient="records")
+    test_data.to_json(os.path.join(out_data_dir, "test.jsonl"), orient="records")
 
 
 def generate_label_dict(
@@ -116,7 +117,7 @@ def generate_label_dict(
     label_set: Set[str] = set()
 
     labels: List[str] = duckdb.query(
-        "select distinct %s from read_csv('%s', AUTO_DETECT=TRUE);" 
+        "select distinct %s from read_json('%s', AUTO_DETECT=TRUE);" 
         % (label_col, full_data_path)
     ).df().iloc[:, 0].tolist()
     for label in labels:
@@ -147,7 +148,7 @@ if __name__ == "__main__":
     else:
         print("Using local cache: %s" % full_base_data_path)
 
-    if not os.path.exists(os.path.join(out_data_dir, "train.csv")):
+    if not os.path.exists(os.path.join(out_data_dir, "train.jsonl")):
         train_data_gen(full_base_data_path, out_data_dir)
     else:
         print("Using local train/dev/test data cache")

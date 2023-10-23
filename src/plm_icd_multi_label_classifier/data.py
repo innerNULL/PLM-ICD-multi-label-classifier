@@ -34,9 +34,9 @@ class TextOnlyDataset(Dataset):
 
         if data_format == "csv":
             self.data = pd.read_csv(data_path)[[text_col, label_col]].to_dict(orient="records")
-        elif data_format == "jsonl":
+        elif data_format in {"jsonl", "json"}:
             self.data = duckdb.query(
-                "select %s from read_json_auto('%s');" % (text_col, data_path)
+                "select %s, %s from read_json_auto('%s');" % (text_col, label_col, data_path)
             ).df()[[text_col, label_col]].to_dict(orient="records")
 
     def __len__(self) -> int:

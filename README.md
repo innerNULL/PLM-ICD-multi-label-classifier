@@ -5,7 +5,9 @@ Basically this is my personal side project. The target is deep understanding
 [paper](https://arxiv.org/abs/2207.05289). Finally, here provide a more concise 
 and clear implementation, which can make things easier when need do some 
 custimization or extension.
-
+ 
+Although the model comes from [paper](https://arxiv.org/abs/2207.05289), I tried my best 
+to make this as a general program for text multi-label classification task.
 
 ## Usage
 ### Python Env
@@ -22,14 +24,25 @@ python -m pytest ./test --cov=./src/plm_icd_multi_label_classifier --durations=0
 ```
 
 ### Data
+The data should be in JSON line format, here provide an MIMIC-III data ETL program:
 ```sh
-python etl_mimic3_processing.py ${YOUR_MIMIC3_DATA_DIRECTORY}
+python etl_mimic3_processing.py ${YOUR_MIMIC3_DATA_DIRECTORY} ${YOUR_TARGET_OUTPUT_DIRECTORY}
+```
+When you need use this program do text multi-label classification on your custimized 
+data set, you can just transfer it into a JSON line file, and using **training config** 
+file to specify which field is text and which is label. 
+
+**NOTE**, since here you are dealing a multi-label classification task, the format of 
+label field should be as a CSV string, for example:
+```
+{"text": "this is a fake text.", "label": "label1,label2,label3,label4"}
 ```
 
 ### Training and Evaluation
 ```sh
-CUDA_VISIBLE_DEVICES=0,1,2,3 python ./train.py train.json
+CUDA_VISIBLE_DEVICES=0,1,2,3 python ./train.py ${TRAIN_CONFIG_JSON_FILE_PATH}
 ```
+
 #### Training Config File
 The format should be JSON, most of parameters are easy to understand is your are a 
 MLE or researcher:
