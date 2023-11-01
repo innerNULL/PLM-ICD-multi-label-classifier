@@ -38,6 +38,17 @@ class TextOnlyDataset(Dataset):
             self.data = duckdb.query(
                 "select %s, %s from read_json_auto('%s');" % (text_col, label_col, data_path)
             ).df()[[text_col, label_col]].to_dict(orient="records")
+        
+        # Remove unseem label in label dictionary, if not may raise error when
+        # using cutomized dev/test data do evaluation.
+        for i, record in enumerate(self.data):
+            curr_filtered_label: List[str] = [
+                x for x in record[label_col].split(",") if x in self.data_dict["label2id"]
+            ]
+            if len(curr_filtered_label) == 0:
+                self.data[i] = None
+        self.data = [x for x in self.data if x is not None]
+        assert(len(self.data) > 0)
 
     def __len__(self) -> int:
         return len(self.data)
