@@ -14,7 +14,7 @@
   "random_seed": 32, 
   "text_col": "text",
   "label_col": "icds", 
-  "ckpt_dir": "./_model", 
+  "ckpt_dir": "./_model/mimic3_icd", 
   "log_period": 500, 
   "dump_period": 5000
 }
