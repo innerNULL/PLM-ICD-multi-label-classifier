@@ -238,6 +238,7 @@ def train_func(configs: Dict) -> None:
             global_step_id += 1
 
     final_ckpt_dir: str = os.path.join(configs["ckpt_dir"], "final")
+    os.system("mkdir -p %s" % final_ckpt_dir)
     print("Saving final ckpt to %s" % final_ckpt_dir)
     if configs["training_engine"] == "torch":
         open(os.path.join(final_ckpt_dir, "train.json"), "w").write(json.dumps(configs))
@@ -252,6 +253,8 @@ if __name__ == "__main__":
     train_conf: Dict = json.loads(open(sys.argv[1], "r").read())
     train_conf["data_dir"] = os.path.abspath(train_conf["data_dir"])
     train_conf["ckpt_dir"] = os.path.abspath(train_conf["ckpt_dir"])
+    if os.path.exists(train_conf["hf_lm"]):
+        train_conf["hf_lm"] = os.path.abspath(train_conf["hf_lm"])
     print("Training config:\n{}".format(train_conf))
 
     os.system("mkdir -p %s" % train_conf["ckpt_dir"])
