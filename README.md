@@ -30,6 +30,8 @@ The ETL contain following steps:
   will be transformed to `string`.
 * Data dictionary generation.
 
+Note, the final data folder should contains 4 files: train.jsonl, dev.jsonl, test.jsonl, dict.json.
+
 #### Prepare (Specific) Original JSON Line Dataset
 The data should be in JSON line format, here provide an MIMIC-III data ETL program:
 ```sh
@@ -137,7 +139,7 @@ Note this step is unnecessary, since the outputs of `./bin/etl/etl_mimic3_proces
 already been limited JSON line files, so even though you run following program, you will get 
 exactly same files:
 ```shell
-python ./bin/etl/etl_jsonl2limited_jsonl.py ./train_mimic3_icd.json
+python ./bin/etl/etl_jsonl2limited_jsonl.py ./_data/raw/mimic3/${INPUT_JSONL_FILE} ./_data/raw/mimic3/${OUTPUT_JSONL_FILE}
 ```
 
 #### Training - Training ICD10 Classification Model with MIMIC-II Dataset
