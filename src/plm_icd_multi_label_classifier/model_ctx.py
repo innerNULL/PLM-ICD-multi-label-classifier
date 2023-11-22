@@ -31,11 +31,17 @@ class PlmIcdCtx():
 
         return self.init(data_dict_path, lm_tokenizer, chunk_size, chunk_num)
 
-    def init(self, data_dict_path: str, lm_tokenizer: str, chunk_size: int, chunk_num: int):
+    def init(self, 
+        data_dict_path: str, 
+        lm_tokenizer: Union[str, AutoTokenizer], 
+        chunk_size: int, chunk_num: int
+    ):
         self.data_dict = json.loads(open(data_dict_path, "r").read())
         self.id2label = {int(k): v for k, v in self.data_dict["id2label"].items()}
         self.label2id = self.data_dict["label2id"]
-        self.tokenizer = AutoTokenizer.from_pretrained(lm_tokenizer)
+        self.tokenizer = \
+            AutoTokenizer.from_pretrained(lm_tokenizer) if isinstance(lm_tokenizer, str) \
+            else lm_tokenizer
         self.chunk_size = chunk_size
         self.chunk_num = chunk_num
         return self
@@ -52,7 +58,7 @@ class PlmIcdCtx():
         )
         return {"token_ids": LongTensor([token_ids]), "attn_masks": LongTensor([attn_masks])}
 
-    def json_inputs2model_train_inputs(
+    def json_inputs2model_train_inputs(self, 
         json_inputs: Union[str, Dict], text_fields: List[str], label_field: str
     ) -> Dict[str, Tensor]:
         model_inputs: Dict[Tensor] = self.json_inputs2model_inf_inputs(
@@ -66,8 +72,12 @@ class PlmIcdCtx():
         for label_id in label_ids:
             label_one_hot[label_id] = 1.0
 
+        assert(label_one_hot.sum() >= 1)
         model_inputs["label_one_hot"] = label_one_hot
-        return label_one_hot
+        model_inputs["token_ids"] = torch.squeeze(model_inputs["token_ids"], 0)
+        model_inputs["attn_masks"] = torch.squeeze(model_inputs["attn_masks"], 0)
+        
+        return model_inputs
 
     def model_outputs2json_outputs(self, 
         model_outputs: Dict[str, Tensor], logits_field: str="logits"
