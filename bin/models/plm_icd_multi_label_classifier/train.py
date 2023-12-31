@@ -3,9 +3,12 @@
 # date: 2023-09-22
 
 
+import sys, os
+sys.path.append(
+    os.path.join(os.path.dirname(__file__), "../../..")
+)
+
 import pdb
-import sys
-import os
 import tempfile
 import json
 import torch
@@ -22,10 +25,10 @@ from tqdm import tqdm
 from ray.train import ScalingConfig
 from ray.train.torch import TorchTrainer
 
-from src.plm_icd_multi_label_classifier import text
-from src.plm_icd_multi_label_classifier.model import PlmMultiLabelEncoder
-from src.plm_icd_multi_label_classifier.data import TextOnlyDataset
-from src.plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
+from src.mia_models.plm_icd_multi_label_classifier import text
+from src.mia_models.plm_icd_multi_label_classifier.model import PlmMultiLabelEncoder
+from src.mia_models.plm_icd_multi_label_classifier.data import TextOnlyDataset
+from src.mia_models.plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
 
 
 def init_with_ckpt(net: PlmMultiLabelEncoder, ckpt_root_path: str, engine: str) -> None:

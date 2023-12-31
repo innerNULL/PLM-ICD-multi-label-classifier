@@ -5,7 +5,7 @@
 
 import sys, os
 sys.path.append(
-    os.path.join(os.path.dirname(__file__), "../src")
+    os.path.join(os.path.dirname(__file__), "../../../src/mia_models")
 )
 
 import pdb
