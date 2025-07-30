@@ -28,6 +28,9 @@ from src.plm_icd_multi_label_classifier.data import TextOnlyDataset
 from src.plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
 
 
+THRESHOLD: float = 0.6
+
+
 def init_with_ckpt(net: PlmMultiLabelEncoder, ckpt_root_path: str, engine: str) -> None:
     ckpts: List[str] = [x for x in os.listdir(ckpt_root_path) if x != "bak"]
     if len(ckpts) == 0:
@@ -94,7 +97,7 @@ def eval(
 
         logits: FloatTensor = torch.concat(all_logits, dim=0)
         output_label_probs: FloatTensor = torch.sigmoid(logits)
-        output_one_hot: FloatTensor = (output_label_probs > 0.5).float()
+        output_one_hot: FloatTensor = (output_label_probs > THRESHOLD).float()
         label_one_hot: FloatTensor = torch.concat(all_label_one_hots, dim=0)
         # Loss
         loss: float = float(
