@@ -2,6 +2,7 @@
   "chunk_size": 256,
   "chunk_num": 3,
   "hf_lm": "distilbert-base-uncased",
+  "hf_key": "",
   "lm_hidden_dim": 768,
   "data_dir": "./_data/etl/mimic3",
   "training_engine": "ray", 

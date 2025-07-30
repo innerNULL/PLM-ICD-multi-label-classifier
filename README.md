@@ -12,11 +12,9 @@ to make this as a general program for text multi-label classification task.
 ## Usage
 ### Python Env
 ```sh
-python -m venv ./_venv --copies
-source ./_venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-# deactivate
+micromamba env create -f environment.yaml -p ./_pyenv --yes
+micromamba activate ./_pyenv
+pip install -r requirements.txt
 ```
 ### Run Tests
 ```sh

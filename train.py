@@ -233,7 +233,10 @@ def train_func(configs: Dict) -> None:
                 elif configs["training_engine"] == "ray":
                     if ray.train.get_context().get_world_rank() == 0:
                         open(os.path.join(ckpt_dir, "train.json"), "w").write(json.dumps(configs))
-                        torch.save(model.module.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+                        try:
+                            torch.save(model.module.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+                        except:
+                            torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
 
             global_step_id += 1
 
@@ -246,7 +249,10 @@ def train_func(configs: Dict) -> None:
     elif configs["training_engine"] == "ray":
         if ray.train.get_context().get_world_rank() == 0:
             open(os.path.join(final_ckpt_dir, "train.json"), "w").write(json.dumps(configs))
-            torch.save(model.module.state_dict(), os.path.join(final_ckpt_dir, "model.pt"))
+            try:
+                torch.save(model.module.state_dict(), os.path.join(final_ckpt_dir, "model.pt"))
+            except:
+                torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
 
 
 if __name__ == "__main__":
@@ -256,7 +262,9 @@ if __name__ == "__main__":
     if os.path.exists(train_conf["hf_lm"]):
         train_conf["hf_lm"] = os.path.abspath(train_conf["hf_lm"])
     print("Training config:\n{}".format(train_conf))
-
+    
+    os.environ["HF_TOKEN"] = train_conf["hf_key"]
+    
     os.system("mkdir -p %s" % train_conf["ckpt_dir"])
 
     if train_conf["training_engine"] == "torch":
