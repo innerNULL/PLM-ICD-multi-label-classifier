@@ -5,20 +5,41 @@
 
 import pdb
 import torch
-from typing import Dict, Optional
+from typing import List, Dict, Optional
 from torch import Tensor, IntTensor, FloatTensor
 
 
 def metrics_func(
     preds_one_hot: IntTensor, label_one_hot: IntTensor, bias: float=1e-6
 ) -> float:
+    pred_nonzero_idx: List[int] | int = torch.nonzero(preds_one_hot.sum(dim=0))\
+        .squeeze()\
+        .tolist()
+    gt_nonzero_idx: List[int] | int = torch.nonzero(label_one_hot.sum(dim=0))\
+        .squeeze()\
+        .tolist()
+    pred_nonzero_idx = (
+        [pred_nonzero_idx] if isinstance(pred_nonzero_idx, int) 
+        else pred_nonzero_idx
+    )
+    gt_nonzero_idx = (
+        [gt_nonzero_idx] if isinstance(gt_nonzero_idx, int)
+        else gt_nonzero_idx
+    )
+    target_label_idx: List[str] = sorted(
+        list(set(pred_nonzero_idx + gt_nonzero_idx))
+    )
+    preds_one_hot = preds_one_hot[:, target_label_idx]
+    label_one_hot = label_one_hot[:, target_label_idx]
+
     # 1 represents correctly predicted positive class
     pred_pos_correctness: IntTensor = preds_one_hot.mul(label_one_hot)
     
-    correct_pos_pred_cnt: IntTensor = pred_pos_correctness.sum(dim=1)
-    sample_label_cnt: IntTensor = label_one_hot.sum(dim=1) + bias
-    pred_label_cnt: IntTensor = preds_one_hot.sum(dim=1) + bias
-
+    # Label level statistics
+    correct_pos_pred_cnt: IntTensor = pred_pos_correctness.sum(dim=0)
+    sample_label_cnt: IntTensor = label_one_hot.sum(dim=0) + bias
+    pred_label_cnt: IntTensor = preds_one_hot.sum(dim=0) + bias
+    
     macro_recall: FloatTensor = correct_pos_pred_cnt.div(sample_label_cnt).mean()
     macro_precision: FloatTensor = correct_pos_pred_cnt.div(pred_label_cnt).mean()
     macro_f1: FloatTensor = 2 * macro_recall * macro_precision / (macro_recall + macro_precision + bias)
