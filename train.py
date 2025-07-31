@@ -9,8 +9,10 @@ import os
 import tempfile
 import json
 import torch
+import random
 import ray.train
 import torch.nn.functional as F
+import numpy as np
 from typing import Dict
 from transformers import AutoTokenizer
 from torch import device
@@ -142,6 +144,8 @@ def eval(
 
 def train_func(configs: Dict) -> None:
     torch.manual_seed(configs["random_seed"])
+    random.seed(configs["random_seed"])
+    np.random.seed(configs["random_seed"])
 
     device: device = None
     if configs["training_engine"] == "torch":
