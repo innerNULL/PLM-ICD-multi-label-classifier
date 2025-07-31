@@ -21,7 +21,10 @@ class PlmMultiLabelEncoder(Module):
         super().__init__()
         
         # Language model
-        self._lm: Module = AutoModel.from_pretrained(lm) if isinstance(lm, str) else lm
+        self._lm: Module = (
+            AutoModel.from_pretrained(lm, trust_remote_code=True) if isinstance(lm, str) 
+            else lm
+        )
 
         # Dimension info
         self._label_num: int = label_num
