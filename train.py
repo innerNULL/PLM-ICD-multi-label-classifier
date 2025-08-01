@@ -109,9 +109,9 @@ def eval(
         prob50_metrics: Dict[str, float] = metrics_func(
             output_one_hot.int(), label_one_hot.int()
         )
-        top5_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=5) 
-        top8_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=8)
-        top15_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=15)
+        #top5_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=5) 
+        #top8_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=8)
+        #top15_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=15)
 
         out = {
             "loss": round(loss, 8),  
@@ -244,7 +244,6 @@ def train_func(configs: Dict) -> None:
                             torch.save(model.module.state_dict(), os.path.join(ckpt_dir, "model.pt"))
                         except:
                             torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
-
             global_step_id += 1
 
     final_ckpt_dir: str = os.path.join(configs["ckpt_dir"], "final")
