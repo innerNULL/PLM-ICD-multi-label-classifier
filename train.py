@@ -237,8 +237,6 @@ def train_func(configs: Dict) -> None:
             optimizer.step()
            
             model.eval()
-            if batch_id % 10 == 0 and configs["training_engine"] == "torch":
-                print("loss=%f" % loss)
             if batch_id % configs["log_period"]  == 0:
                 eval_metrics: Dict[str, float] = eval(
                     model, dev_dataloader, device, configs["single_worker_eval_size"]
