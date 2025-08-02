@@ -55,6 +55,29 @@ def init_with_ckpt(net: PlmMultiLabelEncoder, ckpt_root_path: str, engine: str) 
     )
 
 
+def ckpt_dump(
+    model: torch.nn.Module,
+    global_step_id: int,
+    batch_id: int, 
+    epoch_id: int,
+    configs: Dict
+) -> None:
+    version: str = "step{}-batch{}-epoch{}".format(global_step_id, batch_id, epoch_id)
+    ckpt_dir: str = os.path.join(configs["ckpt_dir"], version)
+    os.system("mkdir -p %s" % ckpt_dir)
+    print("Saving ckpt to %s" % ckpt_dir)
+    if configs["training_engine"] == "torch":
+        open(os.path.join(ckpt_dir, "train.json"), "w").write(json.dumps(configs))
+        torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+    elif configs["training_engine"] == "ray":
+        if ray.train.get_context().get_world_rank() == 0:
+            open(os.path.join(ckpt_dir, "train.json"), "w").write(json.dumps(configs))
+            try:
+                torch.save(model.module.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+            except:
+                torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+
+
 def loss_fn(
     logits: FloatTensor, label_one_hot: FloatTensor, bias: float=1e-10
 ) -> FloatTensor:
@@ -229,36 +252,14 @@ def train_func(configs: Dict) -> None:
                 elif configs["training_engine"] == "ray":
                     ray.train.report(metrics=eval_metrics)
 
-            if global_step_id % configs["dump_period"]  == 0:
-                version: str = "step{}-batch{}-epoch{}".format(global_step_id, batch_id, epoch_id)
-                ckpt_dir: str = os.path.join(configs["ckpt_dir"], version)
-                os.system("mkdir -p %s" % ckpt_dir)
-                print("Saving ckpt to %s" % ckpt_dir)
-                if configs["training_engine"] == "torch":
-                    open(os.path.join(ckpt_dir, "train.json"), "w").write(json.dumps(configs))
-                    torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
-                elif configs["training_engine"] == "ray":
-                    if ray.train.get_context().get_world_rank() == 0:
-                        open(os.path.join(ckpt_dir, "train.json"), "w").write(json.dumps(configs))
-                        try:
-                            torch.save(model.module.state_dict(), os.path.join(ckpt_dir, "model.pt"))
-                        except:
-                            torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+            if global_step_id % configs["dump_period"] == 0:
+                ckpt_dump(model, global_step_id, batch_id, epoch_id, configs)
             global_step_id += 1
 
     final_ckpt_dir: str = os.path.join(configs["ckpt_dir"], "final")
     os.system("mkdir -p %s" % final_ckpt_dir)
     print("Saving final ckpt to %s" % final_ckpt_dir)
-    if configs["training_engine"] == "torch":
-        open(os.path.join(final_ckpt_dir, "train.json"), "w").write(json.dumps(configs))
-        torch.save(model.state_dict(), os.path.join(final_ckpt_dir, "model.pt"))
-    elif configs["training_engine"] == "ray":
-        if ray.train.get_context().get_world_rank() == 0:
-            open(os.path.join(final_ckpt_dir, "train.json"), "w").write(json.dumps(configs))
-            try:
-                torch.save(model.module.state_dict(), os.path.join(final_ckpt_dir, "model.pt"))
-            except:
-                torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+    ckpt_dump(model, global_step_id, batch_id, epoch_id, configs)
 
 
 if __name__ == "__main__":
