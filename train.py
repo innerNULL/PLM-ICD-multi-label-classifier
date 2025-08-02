@@ -9,8 +9,10 @@ import os
 import tempfile
 import json
 import torch
+import random
 import ray.train
 import torch.nn.functional as F
+import numpy as np
 from typing import Dict
 from transformers import AutoTokenizer
 from torch import device
@@ -26,6 +28,9 @@ from src.plm_icd_multi_label_classifier import text
 from src.plm_icd_multi_label_classifier.model import PlmMultiLabelEncoder
 from src.plm_icd_multi_label_classifier.data import TextOnlyDataset
 from src.plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
+
+
+THRESHOLD: float = 0.6
 
 
 def init_with_ckpt(net: PlmMultiLabelEncoder, ckpt_root_path: str, engine: str) -> None:
@@ -94,7 +99,7 @@ def eval(
 
         logits: FloatTensor = torch.concat(all_logits, dim=0)
         output_label_probs: FloatTensor = torch.sigmoid(logits)
-        output_one_hot: FloatTensor = (output_label_probs > 0.5).float()
+        output_one_hot: FloatTensor = (output_label_probs > THRESHOLD).float()
         label_one_hot: FloatTensor = torch.concat(all_label_one_hots, dim=0)
         # Loss
         loss: float = float(
@@ -104,9 +109,9 @@ def eval(
         prob50_metrics: Dict[str, float] = metrics_func(
             output_one_hot.int(), label_one_hot.int()
         )
-        top5_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=5) 
-        top8_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=8)
-        top15_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=15)
+        #top5_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=5) 
+        #top8_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=8)
+        #top15_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=15)
 
         out = {
             "loss": round(loss, 8),  
@@ -116,29 +121,31 @@ def eval(
             "macro_recall": round(prob50_metrics["macro_recall"], 4), 
             "macro_precision": round(prob50_metrics["macro_precision"], 4),
             "macro_f1": round(prob50_metrics["macro_f1"], 4), 
-            "micro_recall@5": round(top5_metrics["micro_recall@5"], 4), 
-            "micro_precision@5": round(top5_metrics["micro_precision@5"], 4), 
-            "micro_f1@5": round(top5_metrics["micro_f1@5"], 4), 
-            "macro_recall@5": round(top5_metrics["macro_recall@5"], 4), 
-            "macro_precision@5": round(top5_metrics["macro_precision@5"], 4), 
-            "macro_f1@5": round(top5_metrics["macro_f1@5"], 4), 
-            "micro_recall@8": round(top8_metrics["micro_recall@8"], 4), 
-            "micro_precision@8": round(top8_metrics["micro_precision@8"], 4), 
-            "micro_f1@8": round(top8_metrics["micro_f1@8"], 4), 
-            "macro_recall@8": round(top8_metrics["macro_recall@8"], 4), 
-            "macro_precision@8": round(top8_metrics["macro_precision@8"], 4), 
-            "macro_f1@8": round(top8_metrics["macro_f1@8"], 4), 
-            "micro_recall@15": round(top15_metrics["micro_recall@15"], 4), 
-            "micro_precision@15": round(top15_metrics["micro_precision@15"], 4), 
-            "micro_f1@15": round(top15_metrics["micro_f1@15"], 4), 
-            "macro_recall@15": round(top15_metrics["macro_recall@15"], 4), 
-            "macro_precision@15": round(top15_metrics["macro_precision@15"], 4), 
-            "macro_f1@15": round(top15_metrics["macro_f1@15"], 4) 
+            #"micro_recall@5": round(top5_metrics["micro_recall@5"], 4), 
+            #"micro_precision@5": round(top5_metrics["micro_precision@5"], 4), 
+            #"micro_f1@5": round(top5_metrics["micro_f1@5"], 4), 
+            #"macro_recall@5": round(top5_metrics["macro_recall@5"], 4), 
+            #"macro_precision@5": round(top5_metrics["macro_precision@5"], 4), 
+            #"macro_f1@5": round(top5_metrics["macro_f1@5"], 4), 
+            #"micro_recall@8": round(top8_metrics["micro_recall@8"], 4), 
+            #"micro_precision@8": round(top8_metrics["micro_precision@8"], 4), 
+            #"micro_f1@8": round(top8_metrics["micro_f1@8"], 4), 
+            #"macro_recall@8": round(top8_metrics["macro_recall@8"], 4), 
+            #"macro_precision@8": round(top8_metrics["macro_precision@8"], 4), 
+            #"macro_f1@8": round(top8_metrics["macro_f1@8"], 4), 
+            #"micro_recall@15": round(top15_metrics["micro_recall@15"], 4), 
+            #"micro_precision@15": round(top15_metrics["micro_precision@15"], 4), 
+            #"micro_f1@15": round(top15_metrics["micro_f1@15"], 4), 
+            #"macro_recall@15": round(top15_metrics["macro_recall@15"], 4), 
+            #"macro_precision@15": round(top15_metrics["macro_precision@15"], 4), 
+            #"macro_f1@15": round(top15_metrics["macro_f1@15"], 4) 
         }
     return out
 
 def train_func(configs: Dict) -> None:
     torch.manual_seed(configs["random_seed"])
+    random.seed(configs["random_seed"])
+    np.random.seed(configs["random_seed"])
 
     device: device = None
     if configs["training_engine"] == "torch":
@@ -233,8 +240,10 @@ def train_func(configs: Dict) -> None:
                 elif configs["training_engine"] == "ray":
                     if ray.train.get_context().get_world_rank() == 0:
                         open(os.path.join(ckpt_dir, "train.json"), "w").write(json.dumps(configs))
-                        torch.save(model.module.state_dict(), os.path.join(ckpt_dir, "model.pt"))
-
+                        try:
+                            torch.save(model.module.state_dict(), os.path.join(ckpt_dir, "model.pt"))
+                        except:
+                            torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
             global_step_id += 1
 
     final_ckpt_dir: str = os.path.join(configs["ckpt_dir"], "final")
@@ -246,7 +255,10 @@ def train_func(configs: Dict) -> None:
     elif configs["training_engine"] == "ray":
         if ray.train.get_context().get_world_rank() == 0:
             open(os.path.join(final_ckpt_dir, "train.json"), "w").write(json.dumps(configs))
-            torch.save(model.module.state_dict(), os.path.join(final_ckpt_dir, "model.pt"))
+            try:
+                torch.save(model.module.state_dict(), os.path.join(final_ckpt_dir, "model.pt"))
+            except:
+                torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
 
 
 if __name__ == "__main__":
@@ -256,7 +268,9 @@ if __name__ == "__main__":
     if os.path.exists(train_conf["hf_lm"]):
         train_conf["hf_lm"] = os.path.abspath(train_conf["hf_lm"])
     print("Training config:\n{}".format(train_conf))
-
+    
+    os.environ["HF_TOKEN"] = train_conf["hf_key"]
+    
     os.system("mkdir -p %s" % train_conf["ckpt_dir"])
 
     if train_conf["training_engine"] == "torch":
