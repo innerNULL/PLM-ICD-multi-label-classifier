@@ -161,7 +161,11 @@ def train_func(configs: Dict) -> None:
             model.eval()
             if batch_id % configs["log_period"]  == 0:
                 eval_metrics: Dict[str, float] = evaluation(
-                    model, dev_dataloader, device, configs["single_worker_eval_size"]
+                    model, 
+                    dev_dataloader, 
+                    device, 
+                    configs["single_worker_eval_size"], 
+                    label_confidence_threshold=configs["eval"]["label_confidence_threshold"]
                 )
                 eval_metrics["train_loss"] = round(float(loss.detach().cpu()), 6)
                 eval_metrics["epoch"] = epoch_id

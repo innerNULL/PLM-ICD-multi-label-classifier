@@ -20,8 +20,11 @@ THRESHOLD: float = 0.6
 
 
 def evaluation(
-    model: PlmMultiLabelEncoder, dataloader: DataLoader, device: device=None, 
-    max_sample: int=1e4
+    model: PlmMultiLabelEncoder, 
+    dataloader: DataLoader, 
+    device: device=None, 
+    max_sample: int=1e4,
+    label_confidence_threshold: float=THRESHOLD
 ) -> Dict[str, float]:
     out: Dict[str, float] = {}
     total_cnt: int = 0
@@ -52,7 +55,9 @@ def evaluation(
 
         logits: FloatTensor = torch.concat(all_logits, dim=0)
         output_label_probs: FloatTensor = torch.sigmoid(logits)
-        output_one_hot: FloatTensor = (output_label_probs > THRESHOLD).float()
+        output_one_hot: FloatTensor = (
+            (output_label_probs > label_confidence_threshold).float()
+        )
         label_one_hot: FloatTensor = torch.concat(all_label_one_hots, dim=0)
         # Loss
         loss: float = float(
