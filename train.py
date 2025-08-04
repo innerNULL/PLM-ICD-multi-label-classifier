@@ -28,9 +28,7 @@ from src.plm_icd_multi_label_classifier import text
 from src.plm_icd_multi_label_classifier.model import PlmMultiLabelEncoder
 from src.plm_icd_multi_label_classifier.data import TextOnlyDataset
 from src.plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
-
-
-THRESHOLD: float = 0.6
+from src.plm_icd_multi_label_classifier.eval import evaluation
 
 
 def init_with_ckpt(net: PlmMultiLabelEncoder, ckpt_root_path: str, engine: str) -> None:
@@ -88,82 +86,6 @@ def loss_fn(
     loss: FloatTensor = -bin_cross_entropies.mean(dim=1)
     return loss.mean()
 
-
-def eval(
-    model: PlmMultiLabelEncoder, dataloader: DataLoader, device: device=None, 
-    max_sample: int=1e4
-) -> Dict[str, float]:
-    out: Dict[str, float] = {}
-    total_cnt: int = 0
-    all_logits: List[FloatTensor] = []
-    all_label_one_hots: List[FloatTensor] = []
-
-    model.eval()
-    with torch.no_grad():
-        for batch in dataloader:
-            curr_label_one_hot: FloatTensor = None
-            curr_text_ids: LongTensor = None
-            curr_attn_masks: LongTensor = None
-
-            curr_text_ids, curr_attn_masks, curr_label_one_hot = batch
-
-            if device is not None:
-                curr_label_one_hot = curr_label_one_hot.to(device)
-                curr_text_ids = curr_text_ids.to(device)
-                curr_attn_masks = curr_attn_masks.to(device)
-            
-            curr_logits: FloatTensor = model(curr_text_ids, curr_attn_masks)
-            all_logits.append(curr_logits)
-            all_label_one_hots.append(curr_label_one_hot)
-
-            total_cnt += curr_text_ids.shape[0]
-            if total_cnt >= max_sample:
-                break
-
-        logits: FloatTensor = torch.concat(all_logits, dim=0)
-        output_label_probs: FloatTensor = torch.sigmoid(logits)
-        output_one_hot: FloatTensor = (output_label_probs > THRESHOLD).float()
-        label_one_hot: FloatTensor = torch.concat(all_label_one_hots, dim=0)
-        # Loss
-        loss: float = float(
-            F.binary_cross_entropy(output_label_probs, label_one_hot).cpu()
-        )
-        # Metrics
-        prob50_metrics: Dict[str, float] = metrics_func(
-            output_one_hot.int(), label_one_hot.int()
-        )
-        #top5_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=5) 
-        #top8_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=8)
-        #top15_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=15)
-
-        out = {
-            "loss": round(loss, 8),  
-            "micro_recall": round(prob50_metrics["micro_recall"], 4), 
-            "micro_precision": round(prob50_metrics["micro_precision"], 4),
-            "micro_f1": round(prob50_metrics["micro_f1"], 4),
-            "macro_recall": round(prob50_metrics["macro_recall"], 4), 
-            "macro_precision": round(prob50_metrics["macro_precision"], 4),
-            "macro_f1": round(prob50_metrics["macro_f1"], 4), 
-            #"micro_recall@5": round(top5_metrics["micro_recall@5"], 4), 
-            #"micro_precision@5": round(top5_metrics["micro_precision@5"], 4), 
-            #"micro_f1@5": round(top5_metrics["micro_f1@5"], 4), 
-            #"macro_recall@5": round(top5_metrics["macro_recall@5"], 4), 
-            #"macro_precision@5": round(top5_metrics["macro_precision@5"], 4), 
-            #"macro_f1@5": round(top5_metrics["macro_f1@5"], 4), 
-            #"micro_recall@8": round(top8_metrics["micro_recall@8"], 4), 
-            #"micro_precision@8": round(top8_metrics["micro_precision@8"], 4), 
-            #"micro_f1@8": round(top8_metrics["micro_f1@8"], 4), 
-            #"macro_recall@8": round(top8_metrics["macro_recall@8"], 4), 
-            #"macro_precision@8": round(top8_metrics["macro_precision@8"], 4), 
-            #"macro_f1@8": round(top8_metrics["macro_f1@8"], 4), 
-            #"micro_recall@15": round(top15_metrics["micro_recall@15"], 4), 
-            #"micro_precision@15": round(top15_metrics["micro_precision@15"], 4), 
-            #"micro_f1@15": round(top15_metrics["micro_f1@15"], 4), 
-            #"macro_recall@15": round(top15_metrics["macro_recall@15"], 4), 
-            #"macro_precision@15": round(top15_metrics["macro_precision@15"], 4), 
-            #"macro_f1@15": round(top15_metrics["macro_f1@15"], 4) 
-        }
-    return out
 
 def train_func(configs: Dict) -> None:
     torch.manual_seed(configs["random_seed"])
@@ -238,7 +160,7 @@ def train_func(configs: Dict) -> None:
            
             model.eval()
             if batch_id % configs["log_period"]  == 0:
-                eval_metrics: Dict[str, float] = eval(
+                eval_metrics: Dict[str, float] = evaluation(
                     model, dev_dataloader, device, configs["single_worker_eval_size"]
                 )
                 eval_metrics["train_loss"] = round(float(loss.detach().cpu()), 6)
