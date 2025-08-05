@@ -19,7 +19,7 @@ from torch import device
 from torch import LongTensor, FloatTensor, IntTensor
 from torch.utils.data import DataLoader 
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import LinearLR
+from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 from ray.train import ScalingConfig
 from ray.train.torch import TorchTrainer
@@ -29,6 +29,11 @@ from src.plm_icd_multi_label_classifier.model import PlmMultiLabelEncoder
 from src.plm_icd_multi_label_classifier.data import TextOnlyDataset
 from src.plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
 from src.plm_icd_multi_label_classifier.eval import evaluation
+
+
+def get_lr(optimizer) -> float:
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
 
 
 def init_with_ckpt(net: PlmMultiLabelEncoder, ckpt_root_path: str, engine: str) -> None:
@@ -128,7 +133,7 @@ def train_func(configs: Dict) -> None:
     dev_dataloader: DataLoader = DataLoader(dev_dataset, batch_size=64, shuffle=True)
     
     optimizer: AdamW = AdamW(model.parameters(), lr=configs["lr"])
-    scheduler = LinearLR(optimizer, total_iters=2000)
+    scheduler = StepLR(optimizer, step_size=1, gamma=0.6)
    
     if configs["training_engine"] == "torch":
         model.to(device)
@@ -173,6 +178,7 @@ def train_func(configs: Dict) -> None:
                 eval_metrics["epoch"] = epoch_id
                 eval_metrics["batch"] = batch_id
                 eval_metrics["step"] = global_step_id
+                eval_metrics["lr"] = format(get_lr(optimizer), "f")
                 if configs["training_engine"] == "torch":
                     print(eval_metrics)
                 elif configs["training_engine"] == "ray":
@@ -181,6 +187,7 @@ def train_func(configs: Dict) -> None:
             if global_step_id % configs["dump_period"] == 0:
                 ckpt_dump(model, global_step_id, batch_id, epoch_id, configs)
             global_step_id += 1
+        scheduler.step()
 
     final_ckpt_dir: str = os.path.join(configs["ckpt_dir"], "final")
     os.system("mkdir -p %s" % final_ckpt_dir)
