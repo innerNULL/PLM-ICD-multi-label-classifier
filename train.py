@@ -112,13 +112,15 @@ def train_func(configs: Dict) -> None:
         train_data_path, data_dict_path, tokenizer, 
         text_col=configs["text_col"], label_col=configs["label_col"],
         chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"], 
-        data_format="jsonl"
+        data_format="jsonl",
+        label_splitter=configs["label_splitter"]
     )
     dev_dataset: TextOnlyDataset = TextOnlyDataset(
         dev_data_path, data_dict_path, tokenizer,
         text_col=configs["text_col"], label_col=configs["label_col"],
         chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"],
-        data_format="jsonl"
+        data_format="jsonl",
+        label_splitter=configs["label_splitter"]
     )
     train_dataloader: DataLoader = DataLoader(
         train_dataset, batch_size=configs["single_worker_batch_size"], shuffle=True
@@ -195,7 +197,6 @@ if __name__ == "__main__":
     print("Training config:\n{}".format(train_conf))
     
     os.environ["HF_TOKEN"] = train_conf["hf_key"]
-    
     os.system("mkdir -p %s" % train_conf["ckpt_dir"])
 
     if train_conf["training_engine"] == "torch":

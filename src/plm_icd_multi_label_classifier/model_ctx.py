@@ -21,6 +21,7 @@ class PlmIcdCtx():
         self.label2id: Dict[str, int] = {}
         self.chunk_size: int = -1
         self.chunk_num: int = -1
+        self.label_splitter: str = ","
 
     def init_by_train_config(self, train_conf_path: str):
         train_conf: Dict = json.loads(open(train_conf_path, "r").read())
@@ -28,13 +29,22 @@ class PlmIcdCtx():
         lm_tokenizer: str = train_conf["hf_lm"]
         chunk_size: int = train_conf["chunk_size"] 
         chunk_num: int = train_conf["chunk_num"]
+        label_splitter: str = train_conf["label_splitter"]
 
-        return self.init(data_dict_path, lm_tokenizer, chunk_size, chunk_num)
+        return self.init(
+            data_dict_path, 
+            lm_tokenizer, 
+            chunk_size, 
+            chunk_num, 
+            label_splitter
+        )
 
     def init(self, 
         data_dict_path: str, 
         lm_tokenizer: Union[str, AutoTokenizer], 
-        chunk_size: int, chunk_num: int
+        chunk_size: int, 
+        chunk_num: int,
+        label_splitter: str
     ):
         self.data_dict = json.loads(open(data_dict_path, "r").read())
         self.id2label = {int(k): v for k, v in self.data_dict["id2label"].items()}
@@ -44,6 +54,7 @@ class PlmIcdCtx():
             else lm_tokenizer
         self.chunk_size = chunk_size
         self.chunk_num = chunk_num
+        self.label_splitter = label_splitter
         return self
 
     def json_inputs2model_inf_inputs(self, 
@@ -64,7 +75,7 @@ class PlmIcdCtx():
         model_inputs: Dict[Tensor] = self.json_inputs2model_inf_inputs(
             json_inputs, text_fields
         )
-        label_names: List[str] = json_inputs[label_field].split(",")
+        label_names: List[str] = json_inputs[label_field].split(self.label_splitter)
         label_ids: List[int] = [
             self.label2id[x] for x in label_names if x in self.label2id
         ]
