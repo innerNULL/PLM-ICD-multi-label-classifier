@@ -15,8 +15,12 @@ from transformers import AutoModel, AutoTokenizer
 class PlmMultiLabelEncoder(Module):
     def __init__(self, 
         label_num: int, 
-        lm: Union[str, Module], lm_embd_dim: int, chunk_size: int=128, chunk_num: int=5, 
-        first_attn_hidden_dim: int=512
+        lm: Union[str, Module], 
+        lm_embd_dim: int, 
+        chunk_size: int=128, 
+        chunk_num: int=5, 
+        first_attn_hidden_dim: int=512,
+        freeze_lm: bool=False
     ):
         super().__init__()
         
@@ -25,6 +29,8 @@ class PlmMultiLabelEncoder(Module):
             AutoModel.from_pretrained(lm, trust_remote_code=True) if isinstance(lm, str) 
             else lm
         )
+        if freeze_lm:
+            self._lm.requires_grad = False
 
         # Dimension info
         self._label_num: int = label_num
