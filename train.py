@@ -13,7 +13,7 @@ import random
 import ray.train
 import torch.nn.functional as F
 import numpy as np
-from typing import Dict
+from typing import Dict, Optional
 from transformers import AutoTokenizer
 from torch import device
 from torch import LongTensor, FloatTensor, IntTensor
@@ -63,10 +63,12 @@ def ckpt_dump(
     global_step_id: int,
     batch_id: int, 
     epoch_id: int,
-    configs: Dict
+    configs: Dict,
+    ckpt_dir: Optional[str]=None
 ) -> None:
-    version: str = "step{}-batch{}-epoch{}".format(global_step_id, batch_id, epoch_id)
-    ckpt_dir: str = os.path.join(configs["ckpt_dir"], version)
+    if ckpt_dir is None:
+        version: str = "step{}-batch{}-epoch{}".format(global_step_id, batch_id, epoch_id)
+        ckpt_dir = os.path.join(configs["ckpt_dir"], version)
     os.system("mkdir -p %s" % ckpt_dir)
     print("Saving ckpt to %s" % ckpt_dir)
     if configs["training_engine"] == "torch":
@@ -189,10 +191,21 @@ def train_func(configs: Dict) -> None:
             global_step_id += 1
         scheduler.step()
 
+    eval_results: Dict[str, float] = evaluation(
+        model, 
+        dev_dataloader, 
+        device, 
+        configs["single_worker_eval_size"], 
+        label_confidence_threshold=configs["eval"]["label_confidence_threshold"],
+        verbose=True
+    )
+    print({k: v for k, v in eval_results.items() if k != "verbose"})
     final_ckpt_dir: str = os.path.join(configs["ckpt_dir"], "final")
-    os.system("mkdir -p %s" % final_ckpt_dir)
-    print("Saving final ckpt to %s" % final_ckpt_dir)
-    ckpt_dump(model, global_step_id, batch_id, epoch_id, configs)
+    ckpt_dump(model, global_step_id, batch_id, epoch_id, configs, final_ckpt_dir)
+    os.system("cp %s %s" % (data_dict_path, final_ckpt_dir))
+    open(os.path.join(final_ckpt_dir, "eval_results.json"), "w").write(
+        json.dumps(eval_results)
+    )
 
 
 if __name__ == "__main__":
