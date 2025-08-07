@@ -13,13 +13,13 @@ import random
 import ray.train
 import torch.nn.functional as F
 import numpy as np
-from typing import Dict
+from typing import Dict, Optional
 from transformers import AutoTokenizer
 from torch import device
 from torch import LongTensor, FloatTensor, IntTensor
 from torch.utils.data import DataLoader 
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import LinearLR
+from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 from ray.train import ScalingConfig
 from ray.train.torch import TorchTrainer
@@ -28,9 +28,12 @@ from src.plm_icd_multi_label_classifier import text
 from src.plm_icd_multi_label_classifier.model import PlmMultiLabelEncoder
 from src.plm_icd_multi_label_classifier.data import TextOnlyDataset
 from src.plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
+from src.plm_icd_multi_label_classifier.eval import evaluation
 
 
-THRESHOLD: float = 0.6
+def get_lr(optimizer) -> float:
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
 
 
 def init_with_ckpt(net: PlmMultiLabelEncoder, ckpt_root_path: str, engine: str) -> None:
@@ -60,10 +63,12 @@ def ckpt_dump(
     global_step_id: int,
     batch_id: int, 
     epoch_id: int,
-    configs: Dict
+    configs: Dict,
+    ckpt_dir: Optional[str]=None
 ) -> None:
-    version: str = "step{}-batch{}-epoch{}".format(global_step_id, batch_id, epoch_id)
-    ckpt_dir: str = os.path.join(configs["ckpt_dir"], version)
+    if ckpt_dir is None:
+        version: str = "step{}-batch{}-epoch{}".format(global_step_id, batch_id, epoch_id)
+        ckpt_dir = os.path.join(configs["ckpt_dir"], version)
     os.system("mkdir -p %s" % ckpt_dir)
     print("Saving ckpt to %s" % ckpt_dir)
     if configs["training_engine"] == "torch":
@@ -88,82 +93,6 @@ def loss_fn(
     loss: FloatTensor = -bin_cross_entropies.mean(dim=1)
     return loss.mean()
 
-
-def eval(
-    model: PlmMultiLabelEncoder, dataloader: DataLoader, device: device=None, 
-    max_sample: int=1e4
-) -> Dict[str, float]:
-    out: Dict[str, float] = {}
-    total_cnt: int = 0
-    all_logits: List[FloatTensor] = []
-    all_label_one_hots: List[FloatTensor] = []
-
-    model.eval()
-    with torch.no_grad():
-        for batch in dataloader:
-            curr_label_one_hot: FloatTensor = None
-            curr_text_ids: LongTensor = None
-            curr_attn_masks: LongTensor = None
-
-            curr_text_ids, curr_attn_masks, curr_label_one_hot = batch
-
-            if device is not None:
-                curr_label_one_hot = curr_label_one_hot.to(device)
-                curr_text_ids = curr_text_ids.to(device)
-                curr_attn_masks = curr_attn_masks.to(device)
-            
-            curr_logits: FloatTensor = model(curr_text_ids, curr_attn_masks)
-            all_logits.append(curr_logits)
-            all_label_one_hots.append(curr_label_one_hot)
-
-            total_cnt += curr_text_ids.shape[0]
-            if total_cnt >= max_sample:
-                break
-
-        logits: FloatTensor = torch.concat(all_logits, dim=0)
-        output_label_probs: FloatTensor = torch.sigmoid(logits)
-        output_one_hot: FloatTensor = (output_label_probs > THRESHOLD).float()
-        label_one_hot: FloatTensor = torch.concat(all_label_one_hots, dim=0)
-        # Loss
-        loss: float = float(
-            F.binary_cross_entropy(output_label_probs, label_one_hot).cpu()
-        )
-        # Metrics
-        prob50_metrics: Dict[str, float] = metrics_func(
-            output_one_hot.int(), label_one_hot.int()
-        )
-        #top5_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=5) 
-        #top8_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=8)
-        #top15_metrics: Dict[str, float] = topk_metrics_func(logits, label_one_hot, top_k=15)
-
-        out = {
-            "loss": round(loss, 8),  
-            "micro_recall": round(prob50_metrics["micro_recall"], 4), 
-            "micro_precision": round(prob50_metrics["micro_precision"], 4),
-            "micro_f1": round(prob50_metrics["micro_f1"], 4),
-            "macro_recall": round(prob50_metrics["macro_recall"], 4), 
-            "macro_precision": round(prob50_metrics["macro_precision"], 4),
-            "macro_f1": round(prob50_metrics["macro_f1"], 4), 
-            #"micro_recall@5": round(top5_metrics["micro_recall@5"], 4), 
-            #"micro_precision@5": round(top5_metrics["micro_precision@5"], 4), 
-            #"micro_f1@5": round(top5_metrics["micro_f1@5"], 4), 
-            #"macro_recall@5": round(top5_metrics["macro_recall@5"], 4), 
-            #"macro_precision@5": round(top5_metrics["macro_precision@5"], 4), 
-            #"macro_f1@5": round(top5_metrics["macro_f1@5"], 4), 
-            #"micro_recall@8": round(top8_metrics["micro_recall@8"], 4), 
-            #"micro_precision@8": round(top8_metrics["micro_precision@8"], 4), 
-            #"micro_f1@8": round(top8_metrics["micro_f1@8"], 4), 
-            #"macro_recall@8": round(top8_metrics["macro_recall@8"], 4), 
-            #"macro_precision@8": round(top8_metrics["macro_precision@8"], 4), 
-            #"macro_f1@8": round(top8_metrics["macro_f1@8"], 4), 
-            #"micro_recall@15": round(top15_metrics["micro_recall@15"], 4), 
-            #"micro_precision@15": round(top15_metrics["micro_precision@15"], 4), 
-            #"micro_f1@15": round(top15_metrics["micro_f1@15"], 4), 
-            #"macro_recall@15": round(top15_metrics["macro_recall@15"], 4), 
-            #"macro_precision@15": round(top15_metrics["macro_precision@15"], 4), 
-            #"macro_f1@15": round(top15_metrics["macro_f1@15"], 4) 
-        }
-    return out
 
 def train_func(configs: Dict) -> None:
     torch.manual_seed(configs["random_seed"])
@@ -190,13 +119,15 @@ def train_func(configs: Dict) -> None:
         train_data_path, data_dict_path, tokenizer, 
         text_col=configs["text_col"], label_col=configs["label_col"],
         chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"], 
-        data_format="jsonl"
+        data_format="jsonl",
+        label_splitter=configs["label_splitter"]
     )
     dev_dataset: TextOnlyDataset = TextOnlyDataset(
         dev_data_path, data_dict_path, tokenizer,
         text_col=configs["text_col"], label_col=configs["label_col"],
         chunk_size=configs["chunk_size"], chunk_num=configs["chunk_num"],
-        data_format="jsonl"
+        data_format="jsonl",
+        label_splitter=configs["label_splitter"]
     )
     train_dataloader: DataLoader = DataLoader(
         train_dataset, batch_size=configs["single_worker_batch_size"], shuffle=True
@@ -204,7 +135,7 @@ def train_func(configs: Dict) -> None:
     dev_dataloader: DataLoader = DataLoader(dev_dataset, batch_size=64, shuffle=True)
     
     optimizer: AdamW = AdamW(model.parameters(), lr=configs["lr"])
-    scheduler = LinearLR(optimizer, total_iters=2000)
+    scheduler = StepLR(optimizer, step_size=1, gamma=0.6)
    
     if configs["training_engine"] == "torch":
         model.to(device)
@@ -237,16 +168,19 @@ def train_func(configs: Dict) -> None:
             optimizer.step()
            
             model.eval()
-            if batch_id % 10 == 0 and configs["training_engine"] == "torch":
-                print("loss=%f" % loss)
             if batch_id % configs["log_period"]  == 0:
-                eval_metrics: Dict[str, float] = eval(
-                    model, dev_dataloader, device, configs["single_worker_eval_size"]
+                eval_metrics: Dict[str, float] = evaluation(
+                    model, 
+                    dev_dataloader, 
+                    device, 
+                    configs["single_worker_eval_size"], 
+                    label_confidence_threshold=configs["eval"]["label_confidence_threshold"]
                 )
                 eval_metrics["train_loss"] = round(float(loss.detach().cpu()), 6)
                 eval_metrics["epoch"] = epoch_id
                 eval_metrics["batch"] = batch_id
                 eval_metrics["step"] = global_step_id
+                eval_metrics["lr"] = format(get_lr(optimizer), "f")
                 if configs["training_engine"] == "torch":
                     print(eval_metrics)
                 elif configs["training_engine"] == "ray":
@@ -255,11 +189,23 @@ def train_func(configs: Dict) -> None:
             if global_step_id % configs["dump_period"] == 0:
                 ckpt_dump(model, global_step_id, batch_id, epoch_id, configs)
             global_step_id += 1
+        scheduler.step()
 
+    eval_results: Dict[str, float] = evaluation(
+        model, 
+        dev_dataloader, 
+        device, 
+        configs["single_worker_eval_size"], 
+        label_confidence_threshold=configs["eval"]["label_confidence_threshold"],
+        verbose=True
+    )
+    print({k: v for k, v in eval_results.items() if k != "verbose"})
     final_ckpt_dir: str = os.path.join(configs["ckpt_dir"], "final")
-    os.system("mkdir -p %s" % final_ckpt_dir)
-    print("Saving final ckpt to %s" % final_ckpt_dir)
-    ckpt_dump(model, global_step_id, batch_id, epoch_id, configs)
+    ckpt_dump(model, global_step_id, batch_id, epoch_id, configs, final_ckpt_dir)
+    os.system("cp %s %s" % (data_dict_path, final_ckpt_dir))
+    open(os.path.join(final_ckpt_dir, "eval_results.json"), "w").write(
+        json.dumps(eval_results)
+    )
 
 
 if __name__ == "__main__":
@@ -271,7 +217,6 @@ if __name__ == "__main__":
     print("Training config:\n{}".format(train_conf))
     
     os.environ["HF_TOKEN"] = train_conf["hf_key"]
-    
     os.system("mkdir -p %s" % train_conf["ckpt_dir"])
 
     if train_conf["training_engine"] == "torch":

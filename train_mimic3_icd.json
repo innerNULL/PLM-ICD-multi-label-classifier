@@ -17,5 +17,9 @@
   "label_col": "icds", 
   "ckpt_dir": "./_model/mimic3_icd", 
   "log_period": 500, 
-  "dump_period": 5000
+  "dump_period": 5000,
+  "label_splitter": ",",
+  "eval": {
+    "label_confidence_threshold": 0.7
+  }
 }

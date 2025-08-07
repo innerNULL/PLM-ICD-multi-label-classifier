@@ -20,9 +20,15 @@ from .model_ctx import PlmIcdCtx
 
 class TextOnlyDataset(Dataset):
     def __init__(self, 
-        data_path: str, data_dict_path: str, tokenizer: AutoTokenizer,
-        text_col: str="text", label_col: str="label", data_format: int="csv", 
-        chunk_size: int=512, chunk_num: int=2
+        data_path: str, 
+        data_dict_path: str, 
+        tokenizer: AutoTokenizer,
+        text_col: str="text", 
+        label_col: str="label", 
+        data_format: int="csv", 
+        chunk_size: int=512, 
+        chunk_num: int=2,
+        label_splitter: str=","
     ):
         self.data_path: str = data_path
         self.data_dict: Dict[str, Dict] = json.loads(open(data_dict_path, "r").read())
@@ -30,8 +36,11 @@ class TextOnlyDataset(Dataset):
         self.label_col: str = label_col
         self.data: List[Dict] = []
         self.model_ctx: PlmIcdCtx = PlmIcdCtx().init(
-            data_dict_path=data_dict_path, lm_tokenizer=tokenizer, 
-            chunk_size=chunk_size, chunk_num=chunk_num
+            data_dict_path=data_dict_path, 
+            lm_tokenizer=tokenizer, 
+            chunk_size=chunk_size, 
+            chunk_num=chunk_num,
+            label_splitter=label_splitter
         )
 
         if data_format == "csv":
@@ -45,7 +54,8 @@ class TextOnlyDataset(Dataset):
         # using cutomized dev/test data do evaluation.
         for i, record in enumerate(self.data):
             curr_filtered_label: List[str] = [
-                x for x in record[label_col].split(",") if x in self.data_dict["label2id"]
+                x for x in record[label_col].split(label_splitter) 
+                if x in self.data_dict["label2id"]
             ]
             if len(curr_filtered_label) == 0:
                 self.data[i] = None

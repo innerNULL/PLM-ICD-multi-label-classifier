@@ -21,7 +21,55 @@ pip install -r requirements.txt
 python -m pytest ./test --cov=./src/plm_icd_multi_label_classifier --durations=0 -v
 ```
 
-### ETL
+### Custom Dataset Preparation
+The training dataset should be a directory with following structure:
+```
+├── dev.jsonl
+├── dict.json
+└── train.jsonl
+
+0 directories, 3 files
+```
+
+`train.jsonl` and `dev.jsonl` are train and validation dataset which are in JSON lines format.
+Each JSON data should contains at lease 2 fields which correspondingly be as inputs text and 
+output label names, following is an example:
+```
+{
+  "input_text": "...",
+  "labels": "label_1, label_5, ..., label_m"
+}
+```
+and based on this sample data format, you should have following settings in your configs:
+```
+{
+  ...
+  "data_dir": "your dataset directory path",
+  "text_col": "input_text",
+  "label_col": "labels"
+  ...   
+}
+```
+
+And the `dict.json` is for bi-directionary mapping between label names and IDs, the format is:
+```
+{
+  "label2id": {
+
+  },
+  "id2label": {
+    0: "label_0",
+    1: "label_1",
+    2: "label_2",
+    ...
+    n: "label_n"
+  }
+}
+```
+As the label ID will be also used as index in one-hot vector, so must start from 0.
+
+
+### (MIMIC3 Dataset Preparation)
 The ETL contain following steps:
 * Origin JSON line dataset preparation
 * Transform JSON line file to **limited** JOSN line file, which means all `list` or `dict` 
