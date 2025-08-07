@@ -54,7 +54,8 @@ class TextOnlyDataset(Dataset):
         # using cutomized dev/test data do evaluation.
         for i, record in enumerate(self.data):
             curr_filtered_label: List[str] = [
-                x for x in record[label_col].split(",") if x in self.data_dict["label2id"]
+                x for x in record[label_col].split(label_splitter) 
+                if x in self.data_dict["label2id"]
             ]
             if len(curr_filtered_label) == 0:
                 self.data[i] = None
