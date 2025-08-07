@@ -132,7 +132,7 @@ def train_func(configs: Dict) -> None:
     train_dataloader: DataLoader = DataLoader(
         train_dataset, batch_size=configs["single_worker_batch_size"], shuffle=True
     )
-    dev_dataloader: DataLoader = DataLoader(dev_dataset, batch_size=64, shuffle=True)
+    dev_dataloader: DataLoader = DataLoader(dev_dataset, batch_size=64, shuffle=False)
     
     optimizer: AdamW = AdamW(model.parameters(), lr=configs["lr"])
     scheduler = StepLR(optimizer, step_size=1, gamma=0.6)
