@@ -24,7 +24,8 @@ def evaluation(
     dataloader: DataLoader, 
     device: device=None, 
     max_sample: int=1e4,
-    label_confidence_threshold: float=THRESHOLD
+    label_confidence_threshold: float=THRESHOLD,
+    verbose: bool=False
 ) -> Dict[str, float]:
     out: Dict[str, float] = {}
     total_cnt: int = 0
@@ -98,4 +99,8 @@ def evaluation(
             #"macro_precision@15": round(top15_metrics["macro_precision@15"], 4), 
             #"macro_f1@15": round(top15_metrics["macro_f1@15"], 4) 
         }
+        if verbose == True:
+            out["verbose"] = {}
+            out["verbose"]["pred_one_hot"] = output_one_hot.int().tolist()
+            out["verbose"]["gt_one_hot"] = label_one_hot.int().tolist()
     return out
