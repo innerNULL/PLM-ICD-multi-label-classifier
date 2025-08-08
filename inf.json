@@ -1,0 +1,19 @@
+{
+  "ckpt_path": "/path/to/model.pt",
+  "label_dict_path": "/path/to/dict.json/file",
+  "test_data_path": "/test/jsonl/file/path",
+  "out_path": "./_inf_results.jsonl",
+  "text_col": "text",
+  "result_col": "results",
+  "model": {
+    "hf_lm": "google-bert/bert-base-uncased", 
+    "lm_hidden_dim": 768,
+    "chunk_size": 512,
+    "chunk_num": 2 
+  },
+  "inf": {
+    "min_confidence": 0.3,
+    "top_k": 10,
+    "label_splitter": "[SEP]"
+  }
+}

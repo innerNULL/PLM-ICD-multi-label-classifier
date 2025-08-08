@@ -1,0 +1,8 @@
+{
+  "inf_results_path": "/path/to/inference/results/jsonl/file",
+  "label_dict_path": "/path/to/dict.json/file",
+  "gt_label_col": "label",
+  "pred_results_col": "results",
+  "min_confidence": 0.5,
+  "label_splitter": "[SEP]"
+}

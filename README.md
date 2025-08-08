@@ -11,13 +11,13 @@ to make this as a general program for text multi-label classification task.
 
 ## Usage
 ### Python Env
-```sh
+```shell
 micromamba env create -f environment.yaml -p ./_pyenv --yes
 micromamba activate ./_pyenv
 pip install -r requirements.txt
 ```
 ### Run Tests
-```sh
+```shell
 python -m pytest ./test --cov=./src/plm_icd_multi_label_classifier --durations=0 -v
 ```
 
@@ -55,7 +55,11 @@ And the `dict.json` is for bi-directionary mapping between label names and IDs, 
 ```
 {
   "label2id": {
-
+    "label_0": 0,
+    "label_1": 1, 
+    "label_2": 2, 
+    ...
+    "label_n": n
   },
   "id2label": {
     0: "label_0",
@@ -66,61 +70,20 @@ And the `dict.json` is for bi-directionary mapping between label names and IDs, 
   }
 }
 ```
-As the label ID will be also used as index in one-hot vector, so must start from 0.
-
-
-### (MIMIC3 Dataset Preparation)
-The ETL contain following steps:
-* Origin JSON line dataset preparation
-* Transform JSON line file to **limited** JOSN line file, which means all `list` or `dict` 
-  will be transformed to `string`.
-* Data dictionary generation.
-
-Note, the final data folder should contains 4 files: train.jsonl, dev.jsonl, test.jsonl, dict.json.
-
-#### Prepare (Specific) Original JSON Line Dataset
-The data should be in JSON line format, here provide an MIMIC-III data ETL program:
-```sh
-python ./bin/etl/etl_mimic3_processing.py ${YOUR_MIMIC3_DATA_DIRECTORY} ${YOUR_TARGET_OUTPUT_DIRECTORY}
-```
-When you need use this program do text multi-label classification on your custimized 
-data set, you can just transfer it into a JSON line file, and using **training config** 
-file to specify which field is text and which is label. 
-
-**NOTE**, since here you are dealing a multi-label classification task, the format of 
-label field should be as a CSV string, for example:
-```
-{"text": "this is a fake text.", "label": "label1,label2,label3,label4"}
-```
-
-But you can also use your specific dataset.
-
-#### Transform To Limited JSON Line Dataset
-Although using JSON line file, here do not allow `list` and `dict` contained in JOSN. 
-I believe "flat" JSON can make things clear, so here provide a tool which can help 
-to convert `list` and `dict` contained in JSON to `string`:
-```shell
-python ./bin/etl/etl_jsonl2limited_jsonl.py ${ORIGINAL_JSON_LINE_DATASET} ${TRANSFORMED_JSON_LINE_DATASET}
-```
-
-**NOTE, alghouth you can put dataset in anly directory you like, but you HAVE TO naming you datasets 
-as train.jsonl, dev.jsonl and test.jsonl.**
-
-#### Data Dictionary Generation
-Generate (some) data dictionaries by scanning train, dev and test data. Run:
-```shell
-python ./bin/etl/etl_generate_data_dict.py ${TRAIN_CONFIG_JSON_FILE_PATH}
-```
+**As the label ID will be also used as index in one-hot vector, so must start from 0.**
+  
+As the original paper use MIMIC-III as dataset, here also provide a 
+[pre-built ETL](https://github.com/innerNULL/PLM-ICD-multi-label-classifier/blob/main/doc/mimic-iii-dataset-etl.md)  
+to generate training data from MIMIC-III data.
 
 
 ### Training and Evaluation
-```sh
+```shell
 CUDA_VISIBLE_DEVICES=0,1,2,3 python ./train.py ${TRAIN_CONFIG_JSON_FILE_PATH}
 ```
 
-#### Training Config File
-The format should be JSON, most of parameters are easy to understand is your are a 
-MLE or researcher:
+The format of config file is JSON, most of parameters are easy to understand 
+if your are a MLE/data scientist/researcher:
 * `chunk_size`: Each chunks token ID number.
 * `chunk_num`: The number of chunk each text/document should have, padding first for short sentences.
 * `hf_lm`: HuggingFace language model name/path, each `hf_lm` may have different `lm_hidden_dim`, 
@@ -145,54 +108,26 @@ MLE or researcher:
 * `ckpt_dir`: Checkpoint directory name.
 * `log_period`: How many **batchs** passed before each time's evaluation log printing.
 * `dump_period`: How many **steps** passed before each time's checkpoint dumping.
+* `label_splitter`: The seperator with which we split concated label string to list of label names.
+* `eval.label_confidence_threshold`: Each label's confidence threshold, if higher then will be set as positive during the evaluation.
+
+### Inference
+```shell
+python inf.py inf.json
+```
+Most parameters explanations are already in `inf.json`.
+
+### Evaluation
+```shell
+python eval.py eval.json
+```
+Most parameters explanations are already in `eval.json`. 
+
+
 
 ## Examples 
-### Using MIMIC-III Data Training ICD10 Classification Model
-#### Preparation - Get Raw MIMIC-III Data
-Suppose you put original MIMIC-III data under `./_data/raw/mimic3/` like:
-```
-./_data/raw/mimic3/
-├── DIAGNOSES_ICD.csv
-├── NOTEEVENTS.csv
-└── PROCEDURES_ICD.csv
-
-0 directories, 3 files
-```
-#### ETL - Training Dataset Building
-This is about join necessary tables' data together and build training dataset. Suppose we are 
-going to put training data under `./_data/etl/mimic3/`, as this programed rules, the directory 
-should contain 3 files, train.jsonl, dev.jsonl and test.jsonl, like:
-```
-./_data/etl/mimic3/
-├── dev.jsonl
-├── dict.json
-├── dim_processed_base_data.jsonl
-├── test.jsonl
-└── train.jsonl
-
-0 directories, 5 files
-```
-You can run:
-```shell
-python ./bin/etl/etl_mimic3_processing.py ./_data/raw/mimic3/ ./_data/etl/mimic3/ 
-```
-
-#### Config - Prepare Your Training Config File
-The `data_dir` in this config will be needed by next ETL step, can just refer to `train_mimic3_icd.json`.
-
-#### ETL - Convert Training Dataset JSONL to Limited JSONL File
-Note this step is unnecessary, since the outputs of `./bin/etl/etl_mimic3_processing.py` have 
-already been limited JSON line files, so even though you run following program, you will get 
-exactly same files:
-```shell
-python ./bin/etl/etl_jsonl2limited_jsonl.py ./_data/raw/mimic3/${INPUT_JSONL_FILE} ./_data/raw/mimic3/${OUTPUT_JSONL_FILE}
-```
-
-#### Training - Training ICD10 Classification Model with MIMIC-II Dataset
-```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 python ./train.py ./train_mimic3_icd.json
-```
-
+### Training Examples
+* [ICD10 prediction based on MIMIC-III data](https://github.com/innerNULL/PLM-ICD-multi-label-classifier/blob/main/doc/mimic-iii-train-example.md)
 
 ## Other Implementation Details
 * After `chunk_size` and `chunk_num` defined, each text's token ID length are fixed to `chunk_size * chunk_num`. 
