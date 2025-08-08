@@ -11,13 +11,13 @@ to make this as a general program for text multi-label classification task.
 
 ## Usage
 ### Python Env
-```sh
+```shell
 micromamba env create -f environment.yaml -p ./_pyenv --yes
 micromamba activate ./_pyenv
 pip install -r requirements.txt
 ```
 ### Run Tests
-```sh
+```shell
 python -m pytest ./test --cov=./src/plm_icd_multi_label_classifier --durations=0 -v
 ```
 
@@ -78,13 +78,12 @@ to generate training data from MIMIC-III data.
 
 
 ### Training and Evaluation
-```sh
+```shell
 CUDA_VISIBLE_DEVICES=0,1,2,3 python ./train.py ${TRAIN_CONFIG_JSON_FILE_PATH}
 ```
 
-#### Training Config File
-The format should be JSON, most of parameters are easy to understand is your are a 
-MLE or researcher:
+The format of config file is JSON, most of parameters are easy to understand 
+if your are a MLE/data scientist/researcher:
 * `chunk_size`: Each chunks token ID number.
 * `chunk_num`: The number of chunk each text/document should have, padding first for short sentences.
 * `hf_lm`: HuggingFace language model name/path, each `hf_lm` may have different `lm_hidden_dim`, 
@@ -109,9 +108,21 @@ MLE or researcher:
 * `ckpt_dir`: Checkpoint directory name.
 * `log_period`: How many **batchs** passed before each time's evaluation log printing.
 * `dump_period`: How many **steps** passed before each time's checkpoint dumping.
+* `label_splitter`: The seperator with which we split concated label string to list of label names.
+* `eval.label_confidence_threshold`: Each label's confidence threshold, if higher then will be set as positive during the evaluation.
+
+### Inference
+```shell
+python inf.py inf.json
+```
+Most parameters explanations are already in `inf.json`.
 
 ### Evaluation
-###
+```shell
+python eval.py eval.json
+```
+Most parameters explanations are already in `eval.json`. 
+
 
 
 ## Examples 
