@@ -21,5 +21,8 @@
   "label_splitter": ",",
   "eval": {
     "label_confidence_threshold": 0.7
+  },
+  "loss": {
+    "name": "bce"
   }
 }

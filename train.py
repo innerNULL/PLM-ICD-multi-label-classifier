@@ -29,6 +29,7 @@ from src.plm_icd_multi_label_classifier.model import PlmMultiLabelEncoder
 from src.plm_icd_multi_label_classifier.data import TextOnlyDataset
 from src.plm_icd_multi_label_classifier.metrics import metrics_func, topk_metrics_func
 from src.plm_icd_multi_label_classifier.eval import evaluation
+from src.plm_icd_multi_label_classifier.loss import loss_factory
 
 
 def get_lr(optimizer) -> float:
@@ -81,17 +82,6 @@ def ckpt_dump(
                 torch.save(model.module.state_dict(), os.path.join(ckpt_dir, "model.pt"))
             except:
                 torch.save(model.state_dict(), os.path.join(ckpt_dir, "model.pt"))
-
-
-def loss_fn(
-    logits: FloatTensor, label_one_hot: FloatTensor, bias: float=1e-10
-) -> FloatTensor:
-    label_probs: FloatTensor = torch.sigmoid(logits) + bias
-    bin_cross_entropies: FloatTensor = \
-        label_one_hot.mul(torch.log(label_probs)) \
-        + (1 - label_one_hot).mul(torch.log(1 - label_probs))
-    loss: FloatTensor = -bin_cross_entropies.mean(dim=1)
-    return loss.mean()
 
 
 def train_func(configs: Dict) -> None:
@@ -161,8 +151,7 @@ def train_func(configs: Dict) -> None:
 
             model.train()
             logits: FloatTensor = model(text_ids, attn_masks)
-            #loss: FloatTensor = loss_fn(logits, label_one_hot)
-            loss: FloatTensor = F.binary_cross_entropy(torch.sigmoid(logits), label_one_hot)
+            loss: FloatTensor = loss_factory(configs["loss"])(logits, label_one_hot)
             
             loss.backward()
             optimizer.step()
