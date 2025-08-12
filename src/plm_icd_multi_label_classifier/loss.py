@@ -5,7 +5,9 @@
 
 import pdb
 import torch
-from torch import FloatTensor
+import torch.nn.functional as F
+from typing import Callable, Optional, Dict
+from torch import LongTensor, FloatTensor, IntTensor
 
 
 def bce_with_logits(
@@ -20,15 +22,45 @@ def bce_with_logits(
 
 
 def focal_loss_with_logits(
-    logits: FloatTensor, label_one_hot: FloatTensor, bias: float=1e-10, gamma: float=2
+    logits: FloatTensor, 
+    label_one_hot: FloatTensor, 
+    bias: float=1e-10, 
+    gamma: float=2
 ) -> FloatTensor:
     """
-    I got this from this paper
-    "Balancing Methods for Multi-label Text Classification with Long-Tailed Class Distribution", 
-    but seems it at least not work for all medical dataset I had.
+    Refer to Focal Loss for Dense Object Detection
+    https://arxiv.org/pdf/1708.02002
+
+    This's still under testing
     """
-    label_probs: FloatTensor = torch.sigmoid(logits) + bias
-    loss: FloatTensor = \
-        label_one_hot.mul(torch.log(label_probs)).mul(torch.pow(1 - label_probs, gamma)) \
-        + (1 - label_one_hot).mul(torch.log(1 - label_probs)).mul(torch.pow(label_probs, gamma))
-    return (-1 * loss).mean(dim=1).mean()
+    pred_probs_pos: FloatTensor = torch.sigmoid(logits) * label_one_hot
+    pred_probs_neg: FloatTensor = (1 - torch.sigmoid(logits)) * (1 - label_one_hot) 
+    p_t: FloatTensor = pred_probs_pos + pred_probs_neg
+    modulating_factor: FloatTensor = torch.pow(1 - p_t, gamma)
+    loss: FloatTensor = -1 * modulating_factor * torch.log(p_t)
+    return loss.mean(dim=1).mean()
+
+
+def loss_factory(configs: Dict) -> Optional[Callable]:
+    name: str = configs["name"]
+    loss_fn: Optional[Callable] = None
+    if name in {"bce", "binary_cross_entropy"}:
+        def _loss_fn(
+            logits: FloatTensor, 
+            label_one_hot: IntTensor
+        ) -> FloatTensor:
+            return F.binary_cross_entropy(torch.sigmoid(logits), label_one_hot)
+        loss_fn = _loss_fn
+    elif name in {"focal_loss"}:
+        gamma: float = configs["gamma"]
+        def _loss_fn(
+            logits: FloatTensor, 
+            label_one_hot: IntTensor
+        ) -> FloatTensor:
+            return focal_loss_with_logits(
+                logits, 
+                label_one_hot, 
+                gamma=gamma
+            )
+        loss_fn = _loss_fn
+    return loss_fn
