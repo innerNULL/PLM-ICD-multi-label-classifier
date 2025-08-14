@@ -5,6 +5,7 @@
   "out_path": "./_inf_results.jsonl",
   "text_col": "text",
   "result_col": "results",
+  "device": "cuda:5",
   "model": {
     "hf_lm": "google-bert/bert-base-uncased", 
     "lm_hidden_dim": 768,
