@@ -10,6 +10,7 @@ import tempfile
 import json
 import torch
 import random
+import logging
 import ray.train
 import torch.nn.functional as F
 import numpy as np
@@ -211,6 +212,7 @@ if __name__ == "__main__":
     if train_conf["training_engine"] == "torch":
         train_func(train_conf)
     elif train_conf["training_engine"] == "ray":
+        ray.init(log_to_driver=False, logging_level=logging.ERROR)
         scaling_config = ScalingConfig(
             num_workers=train_conf["workers"], use_gpu=(train_conf["gpu"] == "true")
         )

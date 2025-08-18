@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from typing import Callable, Optional, Dict
 from torch import LongTensor, FloatTensor, IntTensor
-
+from torch import device
 
 def bce_with_logits(
     logits: FloatTensor, label_one_hot: FloatTensor, bias: float=1e-10
@@ -24,7 +24,7 @@ def bce_with_logits(
 def focal_loss_with_logits(
     logits: FloatTensor, 
     label_one_hot: FloatTensor, 
-    bias: float=1e-10, 
+    alpha: Optional[float]=None, 
     gamma: float=2
 ) -> FloatTensor:
     """
@@ -33,11 +33,21 @@ def focal_loss_with_logits(
 
     This's still under testing
     """
+    alpha_all: Optional[FloatTensor] = None
+    if alpha is not None:
+        use_device: device = label_one_hot.device
+        alpha_pos: FloatTensor = (
+            torch.full(logits.shape, alpha, device=use_device) * label_one_hot
+        )
+        alpha_neg: FloatTensor = (1.0 - alpha_pos) * (1 - label_one_hot) 
+        alpha_all = alpha_pos + alpha_neg
     pred_probs_pos: FloatTensor = torch.sigmoid(logits) * label_one_hot
     pred_probs_neg: FloatTensor = (1 - torch.sigmoid(logits)) * (1 - label_one_hot) 
     p_t: FloatTensor = pred_probs_pos + pred_probs_neg
     modulating_factor: FloatTensor = torch.pow(1 - p_t, gamma)
     loss: FloatTensor = -1 * modulating_factor * torch.log(p_t)
+    if alpha_all is not None:
+        loss = loss * alpha_all
     return loss.mean(dim=1).mean()
 
 
@@ -52,6 +62,7 @@ def loss_factory(configs: Dict) -> Optional[Callable]:
             return F.binary_cross_entropy(torch.sigmoid(logits), label_one_hot)
         loss_fn = _loss_fn
     elif name in {"focal_loss"}:
+        alpha: Optional[float] = configs["alpha"]
         gamma: float = configs["gamma"]
         def _loss_fn(
             logits: FloatTensor, 
@@ -60,6 +71,7 @@ def loss_factory(configs: Dict) -> Optional[Callable]:
             return focal_loss_with_logits(
                 logits, 
                 label_one_hot, 
+                alpha=alpha, 
                 gamma=gamma
             )
         loss_fn = _loss_fn

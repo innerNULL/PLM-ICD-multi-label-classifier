@@ -41,7 +41,7 @@ def main() -> None:
         model_conf["lm_hidden_dim"],
         model_conf["chunk_size"], 
         model_conf["chunk_num"]
-    )
+    ).to(configs["device"])
     model_ctx: PlmIcdCtx = PlmIcdCtx()
 
     model.load_state_dict(torch.load(configs["ckpt_path"]))
@@ -60,8 +60,8 @@ def main() -> None:
             text_fields=[configs["text_col"]]
         )
         model_output: Tensor = model.forward(
-            token_ids=model_inputs["token_ids"],
-            attn_masks=model_inputs["attn_masks"]
+            token_ids=model_inputs["token_ids"].to(configs["device"]),
+            attn_masks=model_inputs["attn_masks"].to(configs["device"])
         )
         pred_outputs: Dict[str, float] = model_ctx.model_outputs2json_outputs(
             {"logits": model_output}, 
