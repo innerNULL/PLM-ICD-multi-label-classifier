@@ -23,6 +23,8 @@
     "label_confidence_threshold": 0.7
   },
   "loss": {
-    "name": "bce"
+    "name": "bce",
+    "alpha": 0.75,
+    "gamma": 1
   }
 }
