@@ -131,7 +131,10 @@ def train_func(configs: Dict) -> None:
     if configs["training_engine"] == "torch":
         model.to(device)
     elif configs["training_engine"] == "ray":
-        model = ray.train.torch.prepare_model(model)
+        model = ray.train.torch.prepare_model(
+            model,
+            parallel_strategy_kwargs={"find_unused_parameters": True}
+        )
         train_dataloader = ray.train.torch.prepare_data_loader(train_dataloader)
         dev_dataloader = ray.train.torch.prepare_data_loader(dev_dataloader)
    
